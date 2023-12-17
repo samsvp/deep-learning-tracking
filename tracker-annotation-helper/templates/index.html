@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Flask Canvas App</title>
+    <style></style>
+    <style>
+        canvas {
+            border: 1px solid black;
+        }
+    </style>
+    <script src="{{ url_for('static', filename='js/box.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/helpers.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <div class="container">
+        <h3 style="text-align: center;margin:0;">
+            Frame <span id="curr-frame">0</span> / {{ frame_count - 1 }}
+        </h3>
+
+        <button id="export-mot"> Export to MOT </button>
+        <button id="next-image"> Next </button>
+        <button id="prev-image"> Prev </button>
+        <button id="select-image"> Select Image </button>
+        <button id="delete-id"> Delete ID </button>
+        <button id="replace-id"> Replace ID </button>
+        <button id="interpolate"> Interpolate </button>
+    </div>
+
+    <div class="container">
+        <canvas id="myCanvas" width="{{ bg_width }}" height="{{ bg_height }}"></canvas>
+    </div>
+
+    <script>
+        // Load the background image onto the canvas
+        var canvas = document.getElementById('myCanvas');
+        canvas.tabIndex = 1000; // force canvas to listen to keyboard events
+        var ctx = canvas.getContext('2d');
+        var img = new Image();
+        let mouseX, mouseY;
+        let frame = -1;
+
+        let squares = {};
+        loadData();
+        loadImage("next");
+
+
+        const exportButton = document.querySelector('#export-mot');
+        exportButton.addEventListener('click', () => {
+            exportToMOT("mot.txt");
+        });
+
+        const nextImageButton = document.querySelector('#next-image');
+        nextImageButton.addEventListener('click', () => {
+            loadImage("next");
+        });
+
+
+        const prevImageButton = document.querySelector('#prev-image');
+        prevImageButton.addEventListener('click', () => {
+            loadImage("prev");
+        });
+
+
+        const selectImageButton = document.querySelector('#select-image');
+        selectImageButton.addEventListener('click', () => {
+            let frame = promptInt("Select frame number: ");
+            console.log(frame)
+            if (frame == null || isNaN(frame)) return;
+            
+            loadSelectedImage(frame);
+        });
+
+
+        const deleteIDButton = document.querySelector('#delete-id');
+        deleteIDButton.addEventListener('click', () => {
+            let id = promptInt("Select ID to remove: ");
+            if (id == null || isNaN(id))
+                return;
+
+            for (f in squares) {
+                let foundIdx = -1;
+                for (let i = 0; i < squares[f].length; i++) {
+                    if (squares[f][i].number == id) {
+                        foundIdx = i;
+                        break;
+                    }
+                }
+                if (foundIdx == -1) continue;
+                squares[f].splice(foundIdx, 1);
+            }
+            drawSquares();
+        });
+
+
+        const replaceIDButton = document.querySelector('#replace-id');
+        replaceIDButton.addEventListener('click', () => {
+            let oldId = promptInt("Select ID to replace: ");
+            let newId = promptInt("Replace ID to: ");
+            if (oldId == null || newId == null || isNaN(newId) || isNaN(oldId))
+                return;
+
+            let newSquares = Object.assign(Object.create(Object.getPrototypeOf(squares)), squares);
+            for (f in squares) {
+                let foundOldIdx = -1;
+                let foundNewIdx = -1;
+                for (let i = 0; i < squares[f].length; i++) {
+                    if (squares[f][i].number == oldId) {
+                        foundOldIdx = i;
+                        newSquares[f][i].setNumber(newId);
+                    } else if (squares[f][i].number == newId) {
+                        foundNewIdx = i;
+                    }
+                }
+                if (foundNewIdx != -1 && foundOldIdx != -1) {
+                    let promptMsg = `Replacement from id ${oldId} to ${newId} failed.\n`;
+                    promptMsg += `Found instance of both ids in frame ${f}\n`;
+                    promptMsg += `[R]eplace anyway\n`;
+                    promptMsg += `[A]bort`;
+                    let res = prompt(promptMsg);
+                    if (res.toLowerCase() == 'r') {
+                        newSquares[f][foundOldIdx].setNumber(newId);
+                        newSquares[f].splice(foundNewIdx, 1);
+                    } else {
+                        return;
+                    }
+                }
+            }
+            squares = newSquares;
+            drawSquares();
+            alert(`ID ${oldId} replaced to ${newId}`);
+        });
+
+
+        const interpolateButton = document.querySelector('#interpolate');
+        interpolateButton.addEventListener('click', () => {
+            let id = promptInt("Select ID to linearly interpolate missing frames: ");
+            if (id == null || isNaN(id))
+                return;
+
+            linearInterpolation(id);
+        })
+
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'n') {
+                loadImage('next');
+            } else if (event.key === 'p') {
+                loadImage('prev');
+            }
+        });
+
+
+    </script>
+    <script src="{{ url_for('static', filename='js/canvas-listeners.js') }}"></script>
+</body>
