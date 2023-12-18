@@ -4,6 +4,7 @@ without id assignment. Useful for some trackers implementations
 """
 
 import os
+import json
 import argparse
 import pandas as pd 
 
@@ -32,6 +33,28 @@ def yolo_to_mot(csv_name: str, folder: str, width: int, height: int) -> None:
     pd.DataFrame(all_data).sort_values(by=["frame"]).to_csv(csv_name, header=False, index=False)
 
 
+
+def fastrcnn_to_mot(csv_name: str, filename: str, width: int, height: int) -> None:
+    with open(filename) as fp:
+        data = json.load(fp)['annotations']
+
+    all_data = []
+    for d in data:
+        frame = d['image_id']
+        bb = d['bbox']
+        all_data.append({
+            "frame": frame, "id": -1, 
+            "bb_left": (bb[0] - bb[2]//2),
+            "bb_top": (bb[1] - bb[3]//2), 
+            "bb_width": bb[2],
+            "bb_height": bb[3], 
+            "conf": 0.8, 
+            "x": -1, "y": -1, "z": -1
+        })
+    
+    pd.DataFrame(all_data).sort_values(by=["frame"]).to_csv(csv_name, header=False, index=False)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--folder', help="folder where the detections are stored")
@@ -39,5 +62,6 @@ if __name__ == "__main__":
     parser.add_argument('-w', '--width', type=float, help="original image width")
     parser.add_argument('-t', '--height', type=float, help="original image height")
     args = parser.parse_args()
-    yolo_to_mot(args.name, args.folder, args.width, args.height)
+    #yolo_to_mot(args.name, args.folder, args.width, args.height)
+    fastrcnn_to_mot(args.name, args.folder, args.width, args.height)
 

@@ -1,0 +1,7 @@
+opencv_python==4.1.2.30
+matplotlib==3.0.3
+torchvision==0.2.2
+torch==1.4.0
+imgaug==0.2.8
+Pillow==8.2.0
+nonechucks==0.3.1

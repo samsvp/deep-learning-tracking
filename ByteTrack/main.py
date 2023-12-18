@@ -109,7 +109,7 @@ def main(mot_file: str, video_path: str, csv_name: str,
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-v', '--video', help='Video to track')
-    parser.add_argument('-m', '--mot', help='MOT file with detections')
+    parser.add_argument('-f', '--filename', help='MOT file with detections')
     parser.add_argument('-n', '--name',
                         default="out.mot",
                         help='MOT output file with all tracks')
@@ -117,4 +117,4 @@ if __name__ == "__main__":
                         action="store_true",
                         help="Don't show opencv video")
     args = parser.parse_args()
-    main(args.mot, args.video, args.name, args.skip_video)
+    main(args.filename, args.video, args.name, args.skip_video)
