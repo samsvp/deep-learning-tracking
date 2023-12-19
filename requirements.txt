@@ -1,0 +1,10 @@
+Flask==3.0.0
+matplotlib==3.0.3
+motmetrics==1.4.0
+numpy==1.23.5
+opencv_python==4.1.2.30
+pandas==2.0.3
+Pillow==8.2.0
+Pillow==7.0.0
+Pillow==10.1.0
+scikit_learn==0.22.2
