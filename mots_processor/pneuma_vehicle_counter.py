@@ -1,6 +1,7 @@
 #type: ignore
 
 import argparse
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -88,9 +89,12 @@ def calc_tse(df: pd.DataFrame, u: int, spacing: int):
         speed_sums.append(speed_sum)
         counts.append(count)
 
-    speeds = [3.6 * s / c if c > 0 else 0 for s, c in zip(speed_sums, counts)]
+    # speeds = [3.6 * s / c if c > 0 else 0 for s, c in zip(speed_sums, counts)]
+    # leave everything in pixels
+    speeds = [3600 * s / c if c > 0 else 0 for s, c in zip(speed_sums, counts)]
     flows = [3600 * c / (spacing * 1 / FPS) for c in counts]
-    dens = [1000 * f / s if s > 0 else 0 for f, s in zip(flows, speeds)]
+    #dens = [1000 * f / s if s > 0 else 0 for f, s in zip(flows, speeds)]
+    dens = [f / s if s > 0 else 0 for f, s in zip(flows, speeds)]
     return speeds, flows, dens, counts
 
 
@@ -110,28 +114,68 @@ if __name__ == "__main__":
 
     plt.figure()
     plt.plot(counts, '-o', label="counts")
-    plt.plot(counts_t, '-o', label="counts_t")
+    plt.plot(counts_t, '-o', label="true")
+    plt.xlabel("T")
+    plt.ylabel("Num Vehicles")
     plt.title("Counts")
     plt.legend()
+    plt.savefig('veh-count.png')
     plt.show(block=False)
 
     plt.figure()
     plt.plot(speeds, '-o', label="speeds")
-    plt.plot(speeds_t, '-o', label="speeds_t")
+    plt.plot(speeds_t, '-o', label="true")
+    plt.xlabel("T")
+    plt.ylabel("Pixels / minute")
     plt.legend()
     plt.title("Speeds")
+    plt.savefig('speed.png')
     plt.show(block=False)
 
     plt.figure()
     plt.plot(flows, '-o', label="flows")
-    plt.plot(flows_t, '-o', label="flows_t")
+    plt.plot(flows_t, '-o', label="true")
+    plt.xlabel("T")
+    plt.ylabel("Vehicles / hour")
     plt.title("Flows")
     plt.legend()
+    plt.savefig('flows.png')
     plt.show(block=False)
 
     plt.figure()
     plt.plot(dens, '-o', label="dens")
-    plt.plot(dens_t, '-o', label="dens_t")
+    plt.plot(dens_t, '-o', label="true")
+    plt.xlabel("T")
+    plt.ylabel("Vehicles / Pixels")
     plt.title("Dens")
     plt.legend()
-    plt.show()
+    plt.savefig('dens.png')
+    plt.show(block=False)
+
+    ## show error
+    times = list(range(len(counts)))
+    errors = {
+        "counts": [100 * abs(c - counts[i]) / c if c > 0 else 0 for i, c in enumerate(counts_t)],
+        "flows": [100 * abs(f - flows[i]) / f if f > 0 else 0 for i, f in enumerate(flows_t)],
+        "speeds": [100 * abs(s - speeds[i]) / s if s > 0 else 0 for i, s in enumerate(speeds_t)],
+        "dens": [100 * abs(d - dens[i]) / d if d > 0 else 0 for i, d in enumerate(dens_t)],
+    }
+
+    for att, value in errors.items():
+        plt.figure()
+        x = np.arange(len(errors["counts"]))  # the label locations
+        width = 0.5  # the width of the bars
+
+        rects = plt.bar(x, value, width, label=att)
+        plt.bar_label(rects, padding=3)
+
+        # Add some text for labels, title and custom x-axis tick labels, etc.
+        plt.ylabel('Errors (%)')
+        plt.title('Relative errors')
+        plt.xticks(x + width, times)
+        plt.legend(loc='upper left')
+
+        plt.show(block=False)
+
+    input()
+

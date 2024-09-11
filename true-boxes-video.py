@@ -1,5 +1,5 @@
 import cv2
-import argparse 
+import argparse
 import numpy as np
 import pandas as pd
 
@@ -7,10 +7,10 @@ from dataclasses import dataclass
 from typing import *
 
 
-@dataclass 
+@dataclass
 class BB:
     x_left: int
-    y_top: int 
+    y_top: int
     width: int
     height: int
 
@@ -22,18 +22,18 @@ def get_random_color(id: int) -> Tuple[int, int, int]:
 def draw_rect(frame: np.ndarray, bb: BB, id: int) -> None:
     color = get_random_color(id)
     cv2.rectangle(
-        frame, 
-        (bb.x_left, bb.y_top), 
-        (bb.x_left + bb.width, bb.y_top + bb.height), 
+        frame,
+        (bb.x_left, bb.y_top),
+        (bb.x_left + bb.width, bb.y_top + bb.height),
         color=color, thickness=2
     )
-    cv2.putText(frame, str(id), (bb.x_left, bb.y_top), 
+    cv2.putText(frame, str(id), (bb.x_left, bb.y_top),
                 cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
 
 
-def main(mot_file: str, video_path: str, save: bool, 
+def main(mot_file: str, video_path: str, save: bool,
          name: str) -> None:
-    df = pd.read_csv(mot_file, 
+    df = pd.read_csv(mot_file,
                  names=["frame", "id", "bb_left", "bb_top", "bb_width", "bb_height", "conf", "x", "y", "z"])
     n = 1
     cap = cv2.VideoCapture(video_path)
@@ -62,7 +62,7 @@ def main(mot_file: str, video_path: str, save: bool,
         if save:
             out.write(frame)
         cv2.imshow('frame', frame)
-        if cv2.waitKey(1) == ord('q'):
+        if cv2.waitKey(100) == ord('q'):
             break
 
     cap.release()
@@ -74,7 +74,7 @@ def main(mot_file: str, video_path: str, save: bool,
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-m', '--mot-file')
-    parser.add_argument('-v', '--video', 
+    parser.add_argument('-v', '--video',
                         default='pneuma10.mp4',
                         help="path of the video to be player")
     parser.add_argument('--save', action="store_true",

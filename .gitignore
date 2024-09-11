@@ -3,6 +3,7 @@ lib/
 lib64/
 *.mp4
 *.jpg
+*.png
 yolov7/
 ByteTrack/byte-env/
 */__pycache__/
