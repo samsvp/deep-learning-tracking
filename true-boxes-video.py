@@ -36,6 +36,7 @@ def main(mot_file: str, video_path: str, save: bool,
     df = pd.read_csv(mot_file,
                  names=["frame", "id", "bb_left", "bb_top", "bb_width", "bb_height", "conf", "x", "y", "z"])
     n = 1
+    print(video_path)
     cap = cv2.VideoCapture(video_path)
     if save:
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) + 0.5)

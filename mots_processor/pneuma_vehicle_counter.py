@@ -7,8 +7,8 @@ import matplotlib.pyplot as plt
 
 def load_df(mot_file: str) -> pd.DataFrame:
     df = pd.read_csv(
-            mot_file,
-            names=["frame", "id", "bb_left", "bb_top", "bb_width", "bb_height", "conf", "x", "y", "z"]
+        mot_file,
+        names=["frame", "id", "bb_left", "bb_top", "bb_width", "bb_height", "conf", "x", "y", "z"]
     )
 
     bottom_df = df[df["bb_top"] > 300]
@@ -103,6 +103,7 @@ if __name__ == "__main__":
     parser.add_argument('-m', '--mot-file')
     parser.add_argument('-t', '--truth-mot')
     parser.add_argument('-s', '--spacing', type=int)
+    parser.add_argument('-f', '--filter-speed', action='store_true')
     args = parser.parse_args()
     df = load_df(args.mot_file)
 
@@ -111,6 +112,8 @@ if __name__ == "__main__":
     speeds, flows, dens, counts = calc_tse(df, 500, args.spacing)
     print("calculating true")
     speeds_t, flows_t, dens_t, counts_t = calc_tse(df_t, 500, args.spacing)
+
+    print(sum(counts), sum(counts_t))
 
     plt.figure()
     plt.plot(counts, '-o', label="counts")
@@ -155,15 +158,17 @@ if __name__ == "__main__":
     ## show error
     times = list(range(len(counts)))
     errors = {
-        "counts": [100 * abs(c - counts[i]) / c if c > 0 else 0 for i, c in enumerate(counts_t)],
-        "flows": [100 * abs(f - flows[i]) / f if f > 0 else 0 for i, f in enumerate(flows_t)],
-        "speeds": [100 * abs(s - speeds[i]) / s if s > 0 else 0 for i, s in enumerate(speeds_t)],
-        "dens": [100 * abs(d - dens[i]) / d if d > 0 else 0 for i, d in enumerate(dens_t)],
+        "Counts": [100 * abs(c - counts[i]) / c if c > 0 else 0 for i, c in enumerate(counts_t)],
+        "Flows": [100 * abs(f - flows[i]) / f if f > 0 else 0 for i, f in enumerate(flows_t)],
+        "Speeds": [100 * abs(s - speeds[i]) / s if s > 0 else 0 for i, s in enumerate(speeds_t)],
+        "Densities": [100 * abs(d - dens[i]) / d if d > 0 else 0 for i, d in enumerate(dens_t)],
     }
+    for name, errs in errors.items():
+        print(f"{name} error is {np.mean(errs)}")
 
     for att, value in errors.items():
         plt.figure()
-        x = np.arange(len(errors["counts"]))  # the label locations
+        x = np.arange(len(errors["Counts"]))  # the label locations
         width = 0.5  # the width of the bars
 
         rects = plt.bar(x, value, width, label=att)
@@ -171,10 +176,11 @@ if __name__ == "__main__":
 
         # Add some text for labels, title and custom x-axis tick labels, etc.
         plt.ylabel('Errors (%)')
-        plt.title('Relative errors')
+        plt.title(f'Relative errors - {att}')
         plt.xticks(x + width, times)
         plt.legend(loc='upper left')
 
+        plt.savefig(f'{att.lower()}-error.png')
         plt.show(block=False)
 
     input()
