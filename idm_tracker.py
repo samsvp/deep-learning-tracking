@@ -17,13 +17,11 @@ class BB:
     width: int
     height: int
 
-def get_frame(path: str, frame: int, blur=True) -> np.ndarray:
+def get_frame(path: str, frame: int) -> np.ndarray:
     raw_name = f"{frame}-10.jpg"
     padded_name = (5 - len(str(frame))) * "0" + raw_name
     name = os.path.join(path, padded_name)
     img = cv2.imread(name)
-    if blur:
-        img = cv2.blur(img, (5, 5))
     return img
 
 def load_mot(mot_file: str) -> pd.DataFrame:
@@ -67,15 +65,18 @@ def view_frame(img: str, df: pd.DataFrame, frame: int) -> None:
     plt.imshow(img)
     plt.show()
 
-def view_flow(flow: np.ndarray) -> None:
+def flow_to_rgb(flow):
     x, y, _ = flow.shape
     hsv = np.zeros((x, y, 3), dtype="uint8")
     hsv[..., 1] = 255
     mag, ang = cv2.cartToPolar(flow[..., 0], flow[..., 1])
     hsv[..., 0] = ang*180/np.pi/2
     hsv[..., 2] = cv2.normalize(mag, None, 0, 255, cv2.NORM_MINMAX)
-    print(hsv.shape, mag.shape)
     rgb = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+    return rgb
+
+def view_flow(flow: np.ndarray) -> None:
+    rgb = flow_to_rgb(flow)
     plt.imshow(rgb)
 
 def calc_optical_flow(frame1: np.ndarray, frame2: np.ndarray) -> np.ndarray:
@@ -84,6 +85,19 @@ def calc_optical_flow(frame1: np.ndarray, frame2: np.ndarray) -> np.ndarray:
 
     flow = cv2.calcOpticalFlowFarneback(prvs, next, None, 0.5, 3, 15, 3, 5, 1.2, 0)
     return flow 
+
+def vehicle_flow(flow, df, id, frame):
+    p = df[(df["id"]==id) & (df["frame"] == frame)]
+    x1, y1 = int(p["bb_left"].values[0]), int(p["bb_top"].values[0])
+    x2 = int(x1 + p["bb_width"].values[0])
+    y2 = int(y1 + p["bb_height"].values[0])
+    dx = flow[y1:y2, x1:x2, 0].mean()
+    dy = flow[y1:y2, x1:x2, 1].mean()
+    if abs(dx) < 1:
+        dx = 0
+    if abs(dy) < 1:
+        dy = 0
+    return dx, dy
 
 def find_leader(df: pd.DataFrame, frame: int, thresh: float = 15.0) -> dict:
     # for now, we pretend that the leader moves from left
@@ -133,6 +147,9 @@ move_area = [[200, 370, 680, 110]]
 #%%
 for f in range(1, 1900):
     frame = get_frame("pNEUMA10/", f)
+    next_frame = get_frame("pNEUMA10/", f + 1)
+    flow = calc_optical_flow(frame, next_frame)
+    frame_flow = flow_to_rgb(flow)
 
     for _, row in p_mot[p_mot["frame"]==f].iterrows():
         id = int(row['id'])
@@ -143,9 +160,13 @@ for f in range(1, 1900):
         bb = BB(x, y, w, h)
         draw_rect(frame, bb, id)
     cv2.imshow('frame', frame)
-    if cv2.waitKey(100) == ord('q'):
+    cv2.imshow('flow', frame_flow)
+    if cv2.waitKey(0) == ord('q'):
         break
 
 cv2.destroyAllWindows()
+
+# %%
+find_leader(p_mot, 15)
 
 # %%
