@@ -426,14 +426,14 @@ plt.legend()
 initial_bbox = get_bbox(0, track_gt)
 tracker = KalmanBoxTracker(initial_bbox)
 initial_bbox_p = get_bbox(0, track_p)
-tracker_p = KalmanBoxTrackerAcc(initial_bbox_p)
+tracker_acc = KalmanBoxTrackerAcc(initial_bbox_p)
 tracker_adp = KalmanBoxTrackerAdaptative(initial_bbox_p)
 tracker_vel = KalmanBoxTrackerWithVelocity(initial_bbox_p)
 
 positions = [tracker.get_state()[0]]
 positions_preds = [tracker.get_state()[0]]
-positions_p = [tracker_p.get_state()[0]]
-positions_p_preds = [tracker_p.get_state()[0]]
+positions_acc = [tracker_acc.get_state()[0]]
+positions_acc_preds = [tracker_acc.get_state()[0]]
 positions_vel = [tracker_vel.get_state()[0]]
 positions_vel_preds = [tracker_vel.get_state()[0]]
 positions_adp = [tracker_adp.get_state()[0]]
@@ -447,11 +447,11 @@ for i in range(1, len(track_p)):
     vel_p = get_flow_bbox(flow, np.array([box_p]))
 
     # calc pos
-    pred_pos = tracker_p.predict()[0]
-    positions_p_preds.append(pred_pos)
-    tracker_p.update(box_p)
-    pos = tracker_p.get_state()[0]
-    positions_p.append(pos)
+    pred_pos = tracker_acc.predict()[0]
+    positions_acc_preds.append(pred_pos)
+    tracker_acc.update(box_p)
+    pos = tracker_acc.get_state()[0]
+    positions_acc.append(pos)
 
     pred_pos = tracker_adp.predict()[0]
     positions_adp_preds.append(pred_pos)
@@ -477,9 +477,9 @@ for i in range(len(track_p), len(track_p) + 15):
     pos = tracker.get_state()[0]
     positions.append(pos)
 
-    tracker_p.predict()
-    pos_p = tracker_p.get_state()[0]
-    positions_p.append(pos_p)
+    tracker_acc.predict()
+    pos_p = tracker_acc.get_state()[0]
+    positions_acc.append(pos_p)
     
     tracker_adp.predict()
     pos_adp = tracker_adp.get_state()[0]
@@ -517,16 +517,8 @@ plt.show()
 
 plt.plot(track_gt["bb_left"].values[:N], 'o', label="gt") #type: ignore
 plt.plot(track_p["bb_left"].values, 'o', label="pred") #type: ignore
-plt.plot([p[0] for p in positions_p], 'o', label="kf p")
-plt.plot([p[0] for p in positions_p_preds], 'o', label="kf preds")
-plt.legend()
-plt.show()
-
-plt.plot(track_gt["bb_left"].values[:N], 'o', label="gt") #type: ignore
-plt.plot(track_p["bb_left"].values, 'o', label="pred") #type: ignore
-plt.plot([p[0] for p in positions], 'o', label="kf gt")
-plt.plot([p[0] for p in positions_p], 'o', label="kf p")
-plt.plot([p[0] for p in positions_preds], 'o', label="kf preds")
+plt.plot([p[0] for p in positions_acc], 'o', label="kf p acc")
+plt.plot([p[0] for p in positions_acc_preds], 'o', label="kf preds acc")
 plt.legend()
 plt.show()
 
@@ -538,15 +530,15 @@ track_p = p_mot[p_mot["id"] == target_p]
 plt.plot(track_p["bb_top"].values, 'o', label="pred") #type: ignore
 
 plt.plot([p[1] for p in positions], 'o', label="kf gt")
-plt.plot([p[1] for p in positions_p], 'o', label="kf p")
+plt.plot([p[1] for p in positions_acc], 'o', label="kf p")
 plt.plot([p[1] for p in positions_vel], 'o', label="kf vel")
 
 plt.legend()
 # %%
-u.play(gt_mot)
+u.play(acc_mot)
 # %%
 for i, (p_d, p, p_vel) in enumerate(
-        zip(positions, positions_p, positions_vel)
+        zip(positions, positions_acc, positions_vel)
     ):
     id_ = 33 if i < len(track_p) else 34
     p_d = p_d.astype(int)
