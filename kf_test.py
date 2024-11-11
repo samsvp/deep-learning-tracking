@@ -74,6 +74,7 @@ def get_flow_bbox(flow, bboxes):
         axis=(0, 1)
     ) for bbox in bboxes]
 
+
 class KalmanBoxTracker(object):
   """
   This class represents the internal state of individual tracked objects observed as bbox.
@@ -146,7 +147,7 @@ class KalmanBoxTracker(object):
     """
     return convert_x_to_bbox(self.kf.x)
 
-class KalmanBoxTracker2(object):
+class KalmanBoxTrackerAcc(object):
     """
     This class represents the internal state of individual tracked objects observed as bbox.
     """
@@ -184,11 +185,9 @@ class KalmanBoxTracker2(object):
 
         self.kf.R[2:,2:] *= 10.
         self.kf.P[4:,4:] *= 1000. #give high uncertainty to the unobservable initial velocities
-        self.kf.P[7:,7:] *= 100.
         self.kf.P *= 10.
         self.kf.Q[-1,-1] *= 0.01
         self.kf.Q[4:,4:] *= 0.01
-        self.kf.Q[7:,7:] *= 0.01
 
         self.kf.x[:4] = convert_bbox_to_z(bbox)
         self.time_since_update = 0
@@ -229,6 +228,57 @@ class KalmanBoxTracker2(object):
         Returns the current bounding box estimate.
         """
         return convert_x_to_bbox(self.kf.x)
+
+
+class KalmanBoxTrackerAdaptative(object):
+    count = 0
+
+    def __init__(self,bbox):
+        self.kf_cv = KalmanBoxTracker(bbox)
+        self.kf_acc = KalmanBoxTrackerAcc(bbox)
+        self.current_model = self.kf_cv
+
+        self.time_since_update = 0
+        self.id = KalmanBoxTracker.count
+        KalmanBoxTracker.count += 1
+        self.history = []
+        self.hits = 0
+        self.hit_streak = 0
+        self.age = 0
+
+    def predict(self):
+        self.kf_cv.predict()
+        self.kf_acc.predict()
+
+        self.age += 1
+        if(self.time_since_update>0):
+            self.hit_streak = 0
+        self.time_since_update += 1
+        self.history.append(convert_x_to_bbox(self.current_model.kf.x))
+        return self.history[-1]
+    
+    def update(self, bbox):
+        self.time_since_update = 0
+        self.history = []
+        self.hits += 1
+        self.hit_streak += 1
+
+        kf_acc_state = self.kf_acc.get_state()
+        kf_cv_state = self.kf_cv.get_state()
+
+        dcv = np.sum((bbox[:4].reshape(1, 4) - kf_cv_state) ** 2)
+        dacc = np.sum((bbox[:4].reshape(1, 4) - kf_acc_state) ** 2)
+
+        self.kf_acc.update(bbox)
+        self.kf_cv.update(bbox)
+
+        if dcv < dacc:
+            self.current_model = self.kf_cv
+        else:
+            self.current_model = self.kf_acc
+
+    def get_state(self):
+        return self.current_model.get_state()
 
 
 class KalmanBoxTrackerWithVelocity(object):
@@ -274,8 +324,8 @@ class KalmanBoxTrackerWithVelocity(object):
         ])
 
         self.vel_R = np.array([
-            [ 20.,  0.],
-            [ 0.,  20.],
+            [ 10.,  0.],
+            [ 0.,  10.],
         ])
 
         self.kf.R = self.pos_H
@@ -347,6 +397,7 @@ def get_bbox(i, dets):
 gt_mot = u.load_mot("10_0900_0930_D10_RM_mot.txt")
 p_mot = u.load_mot("sort/output/pNEUMA10_8-tiny.txt")
 det_mot = u.load_mot("mots/yolo-tiny/cars-tiny-8.mot")
+acc_mot = u.load_mot("sort-acc/output/pNEUMA10_8-tiny.txt")
 
 frame1 = u.get_frame("pNEUMA10/", 1)
 frame2 = u.get_frame("pNEUMA10/", 2)
@@ -359,8 +410,10 @@ flow = calc_optical_flow(frame1, frame2)
 u.view_flow_bbox(flow, gt_mot, 25)
 
 # %%
-target_p = 33
-target_gt = 39
+#target_p = 33
+#target_gt = 39
+target_p = 34
+target_gt = 189
 
 track_gt = gt_mot[gt_mot["id"] == target_gt]
 plt.plot(track_gt["bb_left"], 'o', label="gt")
@@ -373,56 +426,19 @@ plt.legend()
 initial_bbox = get_bbox(0, track_gt)
 tracker = KalmanBoxTracker(initial_bbox)
 initial_bbox_p = get_bbox(0, track_p)
-tracker_p = KalmanBoxTracker2(initial_bbox_p)
-
-positions = [tracker.get_state()[0]]
-positions_p = [tracker_p.get_state()[0]]
-for i in range(1, len(track_p)):
-    print(f"updating for frame = {i}")
-    tracker.predict()
-    tracker.update(get_bbox(i, track_gt))
-    pos = tracker.get_state()[0]
-    positions.append(pos)
-
-    tracker_p.predict()
-    tracker_p.update(get_bbox(i, track_p))
-    pos = tracker_p.get_state()[0]
-    positions_p.append(pos)
-
-for i in range(len(track_p), len(track_p) + 5):
-    print(f"predict for frame = {i}")
-    tracker.predict()
-    pos = tracker.get_state()[0]
-    positions.append(pos)
-
-    tracker_p.predict()
-    pos = tracker_p.get_state()[0]
-    positions_p.append(pos)
-
-track_gt = gt_mot[gt_mot["id"] == target_gt]
-plt.plot(track_gt["bb_left"].values, 'o', label="gt") #type: ignore
-
-track_p = p_mot[p_mot["id"] == target_p]
-plt.plot(track_p["bb_left"].values, 'o', label="pred") #type: ignore
-
-plt.plot([p[0] for p in positions], 'o', label="kf gt")
-plt.plot([p[0] for p in positions_p], 'o', label="kf p")
-
-plt.legend()
-
-# %%
-initial_bbox = get_bbox(0, track_gt)
-tracker = KalmanBoxTracker(initial_bbox)
-initial_bbox_p = get_bbox(0, track_p)
-tracker_p = KalmanBoxTracker2(initial_bbox_p)
+tracker_p = KalmanBoxTrackerAcc(initial_bbox_p)
+tracker_adp = KalmanBoxTrackerAdaptative(initial_bbox_p)
 tracker_vel = KalmanBoxTrackerWithVelocity(initial_bbox_p)
 
 positions = [tracker.get_state()[0]]
+positions_preds = [tracker.get_state()[0]]
 positions_p = [tracker_p.get_state()[0]]
+positions_p_preds = [tracker_p.get_state()[0]]
 positions_vel = [tracker_vel.get_state()[0]]
+positions_vel_preds = [tracker_vel.get_state()[0]]
+positions_adp = [tracker_adp.get_state()[0]]
+positions_adp_preds = [tracker_adp.get_state()[0]]
 for i in range(1, len(track_p)):
-    tracker.predict()
-
     # calc vel
     frame1 = u.get_frame("pNEUMA10/", i)
     frame2 = u.get_frame("pNEUMA10/", i+1)
@@ -431,19 +447,29 @@ for i in range(1, len(track_p)):
     vel_p = get_flow_bbox(flow, np.array([box_p]))
 
     # calc pos
-    tracker_p.predict()
+    pred_pos = tracker_p.predict()[0]
+    positions_p_preds.append(pred_pos)
     tracker_p.update(box_p)
     pos = tracker_p.get_state()[0]
     positions_p.append(pos)
 
-    tracker_vel.predict()
+    pred_pos = tracker_adp.predict()[0]
+    positions_adp_preds.append(pred_pos)
+    tracker_adp.update(box_p)
+    pos_adp = tracker_adp.get_state()[0]
+    positions_adp.append(pos_adp)
+
+    pred_vel = tracker_vel.predict()[0]
+    positions_vel_preds.append(pred_vel)
     tracker_vel.update(box_p, vel_p)
     pos = tracker_vel.get_state()[0]
     positions_vel.append(pos)
-    
+
+    pos_pred = tracker.predict()[0]
     tracker.update(get_bbox(i, track_gt))
     pos = tracker.get_state()[0]
     positions.append(pos)
+    positions_preds.append(pos_pred)
 
 
 for i in range(len(track_p), len(track_p) + 15):
@@ -454,6 +480,10 @@ for i in range(len(track_p), len(track_p) + 15):
     tracker_p.predict()
     pos_p = tracker_p.get_state()[0]
     positions_p.append(pos_p)
+    
+    tracker_adp.predict()
+    pos_adp = tracker_adp.get_state()[0]
+    positions_adp.append(pos_adp)
 
     # calc vel
     tracker_vel.predict()
@@ -468,16 +498,38 @@ for i in range(len(track_p), len(track_p) + 15):
     positions_vel.append(pos_vel)
 
 track_gt = gt_mot[gt_mot["id"] == target_gt]
-plt.plot(track_gt["bb_left"].values, 'o', label="gt") #type: ignore
-
 track_p = p_mot[p_mot["id"] == target_p]
-plt.plot(track_p["bb_left"].values, 'o', label="pred") #type: ignore
 
+N = 30
+plt.plot(track_gt["bb_left"].values[:N], 'o', label="gt") #type: ignore
+plt.plot(track_p["bb_left"].values, 'o', label="pred") #type: ignore
+plt.plot([p[0] for p in positions_adp], 'o', label="kf adp")
+plt.plot([p[0] for p in positions_adp_preds], 'o', label="kf adp preds")
+plt.legend()
+plt.show()
+
+plt.plot(track_gt["bb_left"].values[:N], 'o', label="gt") #type: ignore
+plt.plot(track_p["bb_left"].values, 'o', label="pred") #type: ignore
+plt.plot([p[0] for p in positions_vel], 'o', label="kf vel")
+plt.plot([p[0] for p in positions_vel_preds], 'o', label="kf vel preds")
+plt.legend()
+plt.show()
+
+plt.plot(track_gt["bb_left"].values[:N], 'o', label="gt") #type: ignore
+plt.plot(track_p["bb_left"].values, 'o', label="pred") #type: ignore
+plt.plot([p[0] for p in positions_p], 'o', label="kf p")
+plt.plot([p[0] for p in positions_p_preds], 'o', label="kf preds")
+plt.legend()
+plt.show()
+
+plt.plot(track_gt["bb_left"].values[:N], 'o', label="gt") #type: ignore
+plt.plot(track_p["bb_left"].values, 'o', label="pred") #type: ignore
 plt.plot([p[0] for p in positions], 'o', label="kf gt")
 plt.plot([p[0] for p in positions_p], 'o', label="kf p")
-plt.plot([p[0] for p in positions_vel], 'o', label="kf vel")
-
+plt.plot([p[0] for p in positions_preds], 'o', label="kf preds")
 plt.legend()
+plt.show()
+
 # %%
 track_gt = gt_mot[gt_mot["id"] == target_gt]
 plt.plot(track_gt["bb_top"].values, 'o', label="gt") #type: ignore
@@ -491,7 +543,7 @@ plt.plot([p[1] for p in positions_vel], 'o', label="kf vel")
 
 plt.legend()
 # %%
-u.play(p_mot)
+u.play(gt_mot)
 # %%
 for i, (p_d, p, p_vel) in enumerate(
         zip(positions, positions_p, positions_vel)
