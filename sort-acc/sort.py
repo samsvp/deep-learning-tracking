@@ -85,12 +85,7 @@ def associate_detections_to_trackers(detections,trackers_boxes,trackers,iou_thre
   if(len(trackers_boxes)==0):
     return np.empty((0,2),dtype=int), np.arange(len(detections)), np.empty((0,5),dtype=int)
 
-  iou_matrix_b = iou_batch(detections, trackers_boxes)
-  x = mahalanobis_batch(detections, trackers)
-  iou_matrix = (1 - 1 / (1 + np.exp(-0.5 * x)))
-  iou_matrix /= iou_matrix.max()
-
-  #iou_matrix = iou_matrix_b
+  iou_matrix = iou_batch(detections, trackers_boxes)
 
   if min(iou_matrix.shape) > 0:
     a = (iou_matrix > iou_threshold).astype(np.int32)

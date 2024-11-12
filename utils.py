@@ -2,7 +2,9 @@ import os
 import cv2
 import numpy as np
 import pandas as pd
+from matplotlib.patches import Rectangle
 import matplotlib.pyplot as plt
+import numpy as np
 
 from dataclasses import dataclass
 from typing import *
@@ -24,6 +26,21 @@ def get_frame(path: str, frame: int) -> np.ndarray:
 
 def get_random_color(id: int) -> Tuple[int, int, int]:
     return (id * 1512354 % 256, id * 231245 % 256, id * 5452356 % 256)
+
+def draw_boxes_plt(df, frame, dims):
+    fig = plt.figure()
+    plt.xlim(0, dims[1])
+    plt.ylim(0, dims[0])
+    ax = plt.gca()
+    ax.set_ylim(ax.get_ylim()[::-1]) 
+    for _, row in df[df["frame"]==frame].iterrows():
+        id = int(row['id'])
+        color = get_random_color(id)
+        w = int(row['bb_width'])
+        h = int(row['bb_height'])
+        x = int(row['bb_left'] + w // 2)
+        y = int(row['bb_top'] + h // 2)
+        ax.add_patch(Rectangle((x, y), w, h, facecolor=np.array(color)/255))
 
 def draw_rect(frame: np.ndarray, bb: BB, id: int) -> None:
     color = get_random_color(id)
