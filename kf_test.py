@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from filterpy.kalman import KalmanFilter
+from filterpy.kalman import KalmanFilter, EnsembleKalmanFilter
 import utils as u
 
 np.random.seed(0)
@@ -393,6 +393,102 @@ class KalmanBoxTrackerWithVelocity(object):
 def get_bbox(i, dets):
    return convert_det_bbox(dets.values[i][2:6])
 
+class ParticleFilter(object):
+    def __init__(self,bbox):
+        """
+        Initialises a tracker using initial bounding box.
+        """
+        #define constant velocity model
+        self.F = np.array([
+            [1, 0, 0, 0, 1, 0, 0, 0.5, 0  ],
+            [0, 1, 0, 0, 0, 1, 0, 0,   0.5],
+            [0, 0, 1, 0, 0, 0, 1, 0,   0  ],
+            [0, 0, 0, 1, 0, 0, 0, 0,   0  ],  
+            [0, 0, 0, 0, 1, 0, 0, 1,   0  ],
+            [0, 0, 0, 0, 0, 1, 0, 0,   1  ],
+            [0, 0, 0, 0, 0, 0, 1, 0,   0  ],
+            [0, 0, 0, 0, 0, 0, 0, 1,   0  ],
+            [0, 0, 0, 0, 0, 0, 0, 0,   1  ],
+        ])
+
+        self.H = np.array([
+            [1,0,0,0],
+            [0,1,0,0],
+            [0,0,1,0],
+            [0,0,0,1]
+        ])
+
+        P = np.eye(9) * 1_000
+        x = np.zeros(9)
+        x[:4] = convert_bbox_to_z(bbox).reshape(-1)
+
+        self.pf = EnsembleKalmanFilter(
+            x=x, 
+            P=P, 
+            dim_z=4,
+            dt=1, 
+            N=10_000,
+            fx=self.fx,
+            hx=self.fh,
+        ) 
+        self.R = np.array([
+            [ 1.,  0.,  0.,  0.],
+            [ 0.,  1.,  0.,  0.],
+            [ 0.,  0., 10.,  0.],
+            [ 0.,  0.,  0., 10.]
+        ])
+
+        self.pf.R = self.R
+        self.pf.Q[-1,-1] *= 0.01
+        self.pf.Q[4:,4:] *= 0.01
+        self.pf.Q[7:,7:] *= 0.01
+
+
+        self.time_since_update = 0
+        self.id = KalmanBoxTracker.count
+        KalmanBoxTracker.count += 1
+        self.history = []
+        self.hits = 0
+        self.hit_streak = 0
+        self.age = 0
+
+    def fx(self, x, _):
+        return np.dot(self.F, x)
+
+    def fh(self, x):
+        return x[:4]
+
+    def update(self,bbox):
+        """
+        Updates the state vector with observed bbox.
+        """
+        self.time_since_update = 0
+        self.history = []
+        self.hits += 1
+        self.hit_streak += 1
+        self.pf.update(convert_bbox_to_z(bbox).reshape(-1))
+
+
+    def predict(self):
+        """
+        Advances the state vector and returns the predicted bounding box estimate.
+        """
+        if((self.pf.x[6]+self.pf.x[2])<=0):
+            self.pf.x[6] *= 0.0
+        self.pf.predict()
+        self.age += 1
+        if(self.time_since_update>0):
+            self.hit_streak = 0
+        self.time_since_update += 1
+        self.history.append(convert_x_to_bbox(self.pf.x))
+        return self.history[-1]
+
+    def get_state(self):
+        """
+        Returns the current bounding box estimate.
+        """
+        return convert_x_to_bbox(self.pf.x)
+
 #%%
 gt_mot = u.load_mot("10_0900_0930_D10_RM_mot.txt")
 p_mot = u.load_mot("sort/output/pNEUMA10_8-tiny.txt")
@@ -429,6 +525,7 @@ initial_bbox_p = get_bbox(0, track_p)
 tracker_acc = KalmanBoxTrackerAcc(initial_bbox_p)
 tracker_adp = KalmanBoxTrackerAdaptative(initial_bbox_p)
 tracker_vel = KalmanBoxTrackerWithVelocity(initial_bbox_p)
+tracker_pf = ParticleFilter(initial_bbox_p)
 
 positions = [tracker.get_state()[0]]
 positions_preds = [tracker.get_state()[0]]
@@ -438,6 +535,8 @@ positions_vel = [tracker_vel.get_state()[0]]
 positions_vel_preds = [tracker_vel.get_state()[0]]
 positions_adp = [tracker_adp.get_state()[0]]
 positions_adp_preds = [tracker_adp.get_state()[0]]
+positions_pf = [tracker_adp.get_state()[0]]
+positions_pf_preds = [tracker_adp.get_state()[0]]
 for i in range(1, len(track_p)):
     # calc vel
     frame1 = u.get_frame("pNEUMA10/", i)
@@ -459,6 +558,12 @@ for i in range(1, len(track_p)):
     pos_adp = tracker_adp.get_state()[0]
     positions_adp.append(pos_adp)
 
+    pred_pf = tracker_pf.predict()[0]
+    positions_pf_preds.append(pred_pf)
+    tracker_pf.update(box_p)
+    pos_pf = tracker_pf.get_state()[0]
+    positions_pf.append(pos_pf)
+
     pred_vel = tracker_vel.predict()[0]
     positions_vel_preds.append(pred_vel)
     tracker_vel.update(box_p, vel_p)
@@ -472,7 +577,7 @@ for i in range(1, len(track_p)):
     positions_preds.append(pos_pred)
 
 
-for i in range(len(track_p), len(track_p) + 15):
+for i in range(len(track_p), len(track_p) + 10):
     tracker.predict()
     pos = tracker.get_state()[0]
     positions.append(pos)
@@ -484,6 +589,10 @@ for i in range(len(track_p), len(track_p) + 15):
     tracker_adp.predict()
     pos_adp = tracker_adp.get_state()[0]
     positions_adp.append(pos_adp)
+
+    tracker_pf.predict()
+    pos_pf = tracker_pf.get_state()[0]
+    positions_pf.append(pos_pf)
 
     # calc vel
     tracker_vel.predict()
@@ -522,6 +631,32 @@ plt.plot([p[0] for p in positions_acc_preds], 'o', label="kf preds acc")
 plt.legend()
 plt.show()
 
+plt.plot(track_gt["bb_left"].values[:N], 'o', label="gt") #type: ignore
+plt.plot(track_p["bb_left"].values, 'o', label="pred") #type: ignore
+plt.plot([p[0] for p in positions_pf], 'o', label="kf p pf")
+plt.plot([p[0] for p in positions_pf_preds], 'o', label="kf preds pf")
+plt.legend()
+plt.show()
+
+from filterpy.stats import mahalanobis
+print("Mahalanobis distance")
+bbox = tracker_pf.get_state()[0]
+w = bbox[2] - bbox[0]
+h = bbox[3] - bbox[1]
+m = mahalanobis(track_gt.values[i, 2:6], np.array([bbox[0], bbox[1], w, h]), tracker_pf.pf.P[:4,:4])
+print("pf", m)
+
+bbox = tracker_acc.get_state()[0]
+w = bbox[2] - bbox[0]
+h = bbox[3] - bbox[1]
+m = mahalanobis(track_gt.values[i, 2:6], np.array([bbox[0], bbox[1], w, h]), tracker_acc.kf.P[:4,:4])
+print("acc", m)
+
+bbox = tracker_adp.get_state()[0]
+w = bbox[2] - bbox[0]
+h = bbox[3] - bbox[1]
+m = mahalanobis(track_gt.values[i, 2:6], np.array([bbox[0], bbox[1], w, h]), tracker_adp.current_model.kf.P[:4,:4])
+print("adp", m)
 # %%
 track_gt = gt_mot[gt_mot["id"] == target_gt]
 plt.plot(track_gt["bb_top"].values, 'o', label="gt") #type: ignore
