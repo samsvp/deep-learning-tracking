@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from filterpy.kalman import KalmanFilter, EnsembleKalmanFilter
+from filterpy.stats import mahalanobis
 import utils as u
 
 np.random.seed(0)
@@ -489,6 +490,13 @@ class ParticleFilter(object):
         """
         return convert_x_to_bbox(self.pf.x)
 
+
+def mahalanobis_batch(x, mean, V):
+    VI = np.linalg.pinv(V)
+    d = x - mean
+    return np.sqrt(np.einsum('ij,ij->i', np.einsum('ij,kj->ik', d,VI), d))
+
+
 #%%
 gt_mot = u.load_mot("10_0900_0930_D10_RM_mot.txt")
 p_mot = u.load_mot("sort/output/pNEUMA10_8-tiny.txt")
@@ -638,25 +646,6 @@ plt.plot([p[0] for p in positions_pf_preds], 'o', label="kf preds pf")
 plt.legend()
 plt.show()
 
-from filterpy.stats import mahalanobis
-print("Mahalanobis distance")
-bbox = tracker_pf.get_state()[0]
-w = bbox[2] - bbox[0]
-h = bbox[3] - bbox[1]
-m = mahalanobis(track_gt.values[i, 2:6], np.array([bbox[0], bbox[1], w, h]), tracker_pf.pf.P[:4,:4])
-print("pf", m)
-
-bbox = tracker_acc.get_state()[0]
-w = bbox[2] - bbox[0]
-h = bbox[3] - bbox[1]
-m = mahalanobis(track_gt.values[i, 2:6], np.array([bbox[0], bbox[1], w, h]), tracker_acc.kf.P[:4,:4])
-print("acc", m)
-
-bbox = tracker_adp.get_state()[0]
-w = bbox[2] - bbox[0]
-h = bbox[3] - bbox[1]
-m = mahalanobis(track_gt.values[i, 2:6], np.array([bbox[0], bbox[1], w, h]), tracker_adp.current_model.kf.P[:4,:4])
-print("adp", m)
 # %%
 track_gt = gt_mot[gt_mot["id"] == target_gt]
 plt.plot(track_gt["bb_top"].values, 'o', label="gt") #type: ignore

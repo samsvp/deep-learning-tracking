@@ -63,17 +63,34 @@ def iou_batch(bb_test, bb_gt):
     + (bb_gt[..., 2] - bb_gt[..., 0]) * (bb_gt[..., 3] - bb_gt[..., 1]) - wh)
   return(o)
 
+def mahalanobis_batch(dets, trackers):
+  dets = dets[:, :2].copy()
+  def maha(x, mean, V):
+    VI = np.linalg.pinv(V)
+    d = x - mean
+    return np.sqrt(np.einsum('ij,ij->i', np.einsum('ij,kj->ik', d,VI), d))
 
-def associate_detections_to_trackers(detections,trackers,iou_threshold = 0.1):
+  def state_to_bbox(x):
+    return x[:2]
+
+  return np.array([maha(dets, state_to_bbox(tracker.get_state()[0]), tracker.kf.P[:2,:2])
+        for tracker in trackers]).T
+
+def associate_detections_to_trackers(detections,trackers_boxes,trackers,iou_threshold = 0.1):
   """
   Assigns detections to tracked object (both represented as bounding boxes)
 
   Returns 3 lists of matches, unmatched_detections and unmatched_trackers
   """
-  if(len(trackers)==0):
+  if(len(trackers_boxes)==0):
     return np.empty((0,2),dtype=int), np.arange(len(detections)), np.empty((0,5),dtype=int)
 
-  iou_matrix = iou_batch(detections, trackers)
+  iou_matrix_b = iou_batch(detections, trackers_boxes)
+  x = mahalanobis_batch(detections, trackers)
+  iou_matrix = (1 - 1 / (1 + np.exp(-0.5 * x)))
+  iou_matrix /= iou_matrix.max()
+
+  #iou_matrix = iou_matrix_b
 
   if min(iou_matrix.shape) > 0:
     a = (iou_matrix > iou_threshold).astype(np.int32)
@@ -89,7 +106,7 @@ def associate_detections_to_trackers(detections,trackers,iou_threshold = 0.1):
     if(d not in matched_indices[:,0]):
       unmatched_detections.append(d)
   unmatched_trackers = []
-  for t, trk in enumerate(trackers):
+  for t, trk in enumerate(trackers_boxes):
     if(t not in matched_indices[:,1]):
       unmatched_trackers.append(t)
 
@@ -142,7 +159,7 @@ class Sort(object):
     trks = np.ma.compress_rows(np.ma.masked_invalid(trks))
     for t in reversed(to_del):
       self.trackers.pop(t)
-    matched, unmatched_dets, unmatched_trks = associate_detections_to_trackers(dets,trks, self.iou_threshold)
+    matched, unmatched_dets, unmatched_trks = associate_detections_to_trackers(dets, trks, self.trackers, self.iou_threshold)
 
     # update matched trackers with assigned detections
     for m in matched:
@@ -150,9 +167,9 @@ class Sort(object):
 
     # create and initialise new trackers for unmatched detections
     for i in unmatched_dets:
-        #trk = KalmanBoxTracker(dets[i,:])
+        trk = KalmanBoxTracker(dets[i,:])
         #trk = KalmanBoxTrackerAcc(dets[i,:])
-        trk = KalmanBoxTrackerAdaptative(dets[i,:])
+        #trk = KalmanBoxTrackerAdaptative(dets[i,:])
         self.trackers.append(trk)
     i = len(self.trackers)
     for trk in reversed(self.trackers):
