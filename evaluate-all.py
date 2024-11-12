@@ -16,9 +16,9 @@ def calc_metrics(gt_file: str, prefix: str, half=False):
         # by the 16x16 split
         ground_truth = ground_truth[ground_truth["bb_top"] > 526//2]
 
-    for tracker in ["sort", "deepsort", "ByteTrack"]:
+    for tracker in ["sort-acc", "sort", "deepsort", "ByteTrack"]:
         tracker_path = f"{tracker}/output"
-        mot_names = [os.path.join(tracker_path, mot) 
+        mot_names = [os.path.join(tracker_path, mot)
                      for mot in os.listdir(tracker_path)
                      if prefix in mot
         ]
