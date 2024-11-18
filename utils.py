@@ -32,7 +32,7 @@ def draw_boxes_plt(df, frame, dims):
     plt.xlim(0, dims[1])
     plt.ylim(0, dims[0])
     ax = plt.gca()
-    ax.set_ylim(ax.get_ylim()[::-1]) 
+    ax.set_ylim(ax.get_ylim()[::-1])
     for _, row in df[df["frame"]==frame].iterrows():
         id = int(row['id'])
         color = get_random_color(id)
@@ -41,6 +41,7 @@ def draw_boxes_plt(df, frame, dims):
         x = int(row['bb_left'] + w // 2)
         y = int(row['bb_top'] + h // 2)
         ax.add_patch(Rectangle((x, y), w, h, facecolor=np.array(color)/255))
+    plt.show()
 
 def draw_rect(frame: np.ndarray, bb: BB, id: int) -> None:
     color = get_random_color(id)
@@ -66,6 +67,32 @@ def view_frame(img: np.ndarray, df: pd.DataFrame, frame: int) -> None:
     plt.imshow(img)
     plt.show()
 
+def view_frame_arr(img: np.ndarray, tracks: np.ndarray, show=False) -> None:
+    fig = plt.figure()
+    img = img.copy()
+    for t in tracks:
+        id = int(t[0])
+        w = int(t[3])
+        h = int(t[4])
+        x = int(t[1] + w // 2)
+        y = int(t[2] + h // 2)
+        bb = BB(x, y, w, h)
+        draw_rect(img, bb, id)
+    plt.imshow(img)
+    if show:
+        plt.show()
+
+def draw_all_rects(img: np.ndarray, tracks: np.ndarray):
+    for t in tracks:
+        id = int(t[0])
+        w = int(t[3])
+        h = int(t[4])
+        x = int(t[1] + w // 2)
+        y = int(t[2] + h // 2)
+        bb = BB(x, y, w, h)
+        draw_rect(img, bb, id)
+    return img
+
 def load_mot(mot_file: str) -> pd.DataFrame:
     df = pd.read_csv(
         mot_file,
@@ -74,9 +101,19 @@ def load_mot(mot_file: str) -> pd.DataFrame:
 
     # we are only interested in the bottom part of the file
     bottom_df = df[df["bb_top"] > 300].copy(deep=True)
-    bottom_df["bb_top"] -= 300
 
-    return df
+    return bottom_df #type: ignore
+
+def load_mot_road(mot_file: str) -> pd.DataFrame:
+    df = pd.read_csv(
+        mot_file,
+        names=["frame", "id", "bb_left", "bb_top", "bb_width", "bb_height", "conf", "x", "y", "z"]
+    )
+
+    # we are only interested in the bottom part of the file
+    bottom_df = df[df["bb_top"] > 350].copy(deep=True)
+
+    return bottom_df #type: ignore
 
 def flow_to_rgb(flow: np.ndarray) -> np.ndarray:
     x, y, _ = flow.shape
