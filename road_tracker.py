@@ -108,6 +108,7 @@ def find_leader(tracker: RoadTracker, near: List[RoadTracker]):
     if dir[0] < 0:
         dir[0] = 1
 
+
     print(t.id, dir)
 
 #gt_mot = u.load_mot("10_0900_0930_D10_RM_mot.txt")
@@ -130,11 +131,15 @@ for i in range(2, 10):
     ms, uds, uts = update(trackers, dets)
 
     current_trackers = []
+
+    bboxes = get_boxes(trackers)
+    centers = bboxes[:, 1:3] + bboxes[:, 3:] // 2
     for m in ms:
         t = trackers[m[1]]
         t.update(dets[m[0]])
         current_trackers.append(t)
-        find_leader(t, None)
+        nearest = [trackers[i] for i in find_nearest(t.center, centers, 5)]
+        find_leader(t, nearest)
 
     for u in uds:
         det = dets[u]
