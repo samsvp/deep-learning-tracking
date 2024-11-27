@@ -366,7 +366,7 @@ def suppress_detections(dets: np.ndarray, thresh=0.7) -> np.ndarray:
 #gt_mot = u.load_mot("10_0900_0930_D10_RM_mot.txt")
 #p_mot = u.load_mot("sort/output/pNEUMA10_8-tiny.txt")
 #acc_mot = u.load_mot("sort-acc/output/pNEUMA10_8-tiny.txt")
-det_mot = utils.load_mot("mots/yolo-tiny/cars-tiny-8.mot")
+det_mot = utils.load_mot_road("mots/yolo-tiny/cars-tiny-8.mot")
 
 #frame1 = u.get_frame("pNEUMA10/", 1)
 #u.view_frame(frame1, det_mot, 1)
