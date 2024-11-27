@@ -13,8 +13,7 @@ class RoadTracker():
     #insert unscented kalman filter
     """Tracker which considers a vehicle in the road, following another car"""
     count = 1
-    def __init__(self, det):
-        self.id = RoadTracker.count
+    def __init__(self, det, is_mock=False):
         self.curr_bbox = det
         self.last_bbox = det
         self.delta = np.array([0, 0])
@@ -25,7 +24,11 @@ class RoadTracker():
         self.leaders = {}
         self.followers = {}
 
-        RoadTracker.count += 1
+        if not is_mock:
+            self.id = RoadTracker.count
+            RoadTracker.count += 1
+        else:
+            self.id = -1
 
     def update(self, det):
         self.predict_count = 0
@@ -36,10 +39,16 @@ class RoadTracker():
         self.delta = self.center - self.last_center
         self.history.append(det)
 
-    def predict(self, nearest_trackers: List["RoadTracker"]):
+    def predict(self, nearest_trackers: List["RoadTracker"]) -> np.ndarray:
         """Predicts the position of the vehicle based on the position
         of nearest vehicles."""
         self.predict_count += 1
+        self.leaders, follower = find_leader_follower(self, nearest_trackers)
+        acc = idm(self)
+        print(acc)
+        v = self.center - self.last_center
+        center = self.center + v + acc / 2
+        return center
 
     def get_boxes(self):
         """Returns the vehicle id and its current bounding box."""
@@ -59,11 +68,20 @@ class Trackers():
     def __init__(self, dets: np.ndarray) -> None:
         self.current = [RoadTracker(det) for det in dets]
 
+    def predict(self):
+        bboxes = get_boxes(self.current)
+        centers = bboxes[:, 1:3] + bboxes[:, 3:] // 2
+        for t in self.current:
+            #pay attention to 23, 24, 27
+            if t.id != 24:
+                continue
+
+            nearest = [self.current[i] for i in find_nearest(t.center, centers, 5)]
+            center = t.predict(nearest)
+            print(f"Predicted center for {t.id} is {center}")
+
     def update(self, dets: np.ndarray):
         ms, uds, uts = update(self.current, dets)
-
-        # should call predict here
-
 
         current_trackers = []
 
@@ -71,6 +89,9 @@ class Trackers():
             t = self.current[m[1]]
             t.update(dets[m[0]])
             current_trackers.append(t)
+            if t.id == 24:
+                print(f"True center for {t.id} is {t.center}")
+
 
         for u in uds:
             det = dets[u]
@@ -87,7 +108,7 @@ class Trackers():
         for u in uts:
             bboxes = get_boxes(self.current)
             centers = bboxes[:, 1:3] + bboxes[:, 3:] // 2
-            print(f"nearest to {u}:", find_nearest(self.current[u].center, centers, 3))
+            #print(f"nearest to {u}:", find_nearest(self.current[u].center, centers, 3))
 
         for ut in uts:
             ...
@@ -197,7 +218,7 @@ def find_dir(tracker: RoadTracker, near: List[RoadTracker], dir: np.ndarray):
     dir /= np.sum(dir ** 2) ** 0.5
     leaders = {}
     alpha = 100
-    noises = [np.array([0.1, 0.1]), np.array([0.0, 0]), np.array([-0.1, -0.1])]
+    noises = [np.array([0.05, 0.05]), np.array([0.0, 0]), np.array([-0.05, -0.05])]
     for noise in noises:
         p1 = tracker.center
         p2 = p1 + alpha * (dir + noise)
@@ -223,8 +244,21 @@ def find_leader_follower(tracker: RoadTracker, near: List[RoadTracker]):
     return find_dir(tracker, near, dir), find_dir(tracker, near, -dir)
 
 
-def idm(vehicle, v0=15, T=1.0, s0=12, a=0.3, b=0.4):
-    pass
+def idm(vehicle: RoadTracker, v0=15, T=1.0, s0=12, a=0.3, b=0.4):
+    leader = vehicle.get_leader()
+    if leader is None:
+        leader = RoadTracker(np.array([1000, 1000, 20, 20]), is_mock=True)
+
+    v = vehicle.center[:2] - vehicle.last_center[:2]
+    vl = leader.center[:2] - leader.last_center[:2]
+    print(f"velocities: {v}, {vl}")
+    dv = v - vl
+    ds = ((leader.center[:2] - vehicle.center[:2]) ** 2).sum()
+    s_star = s0 + np.maximum(0, (v * T + v * dv / (2 * np.sqrt(a * b))))
+    print(f"ds {ds}, s_star {s_star}")
+    acc = a * (1 - (v / v0) ** 4 - (s_star / ds) ** 2)
+    print(vehicle.id, leader.id)
+    return acc
 
 
 #gt_mot = u.load_mot("10_0900_0930_D10_RM_mot.txt")
@@ -238,9 +272,10 @@ det_mot = utils.load_mot_road("mots/yolo-tiny/cars-tiny-8.mot")
 dets = get_detections(det_mot, 1)
 trackers = Trackers(dets)
 
-for i in range(2, 100):
+for i in range(2, 15):
     print(i)
     dets = get_detections(det_mot, i)
+    trackers.predict()
     trackers.update(dets)
 
     frame2 = utils.get_frame("pNEUMA10/", i)
