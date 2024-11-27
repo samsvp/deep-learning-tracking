@@ -103,8 +103,6 @@ class RoadTracker():
             self.center = x[:2]
             self.leaders, follower = find_leader_follower(self, nearest_trackers)
             acc = idm(self)
-            if self.id == 44:
-                print("acc", acc)
             v = self.center - self.last_center
             center = self.center + v + acc / 2
             new_v = v + acc
@@ -151,6 +149,7 @@ class RoadTracker():
 class Trackers():
     def __init__(self, dets: np.ndarray) -> None:
         self.current = [RoadTracker(det) for det in dets]
+        self.history = [[c.get_boxes() for c in self.current]]
 
     def predict(self):
         bboxes = get_boxes(self.current)
@@ -186,21 +185,25 @@ class Trackers():
             x = t.ukf.x
             # offscreen
             if x[0] > limit_x or x[0] < 0:
-                print(f"Skipping {t.id} due to out of bound")
                 continue
 
             # too few frames, ignore
             if len(t.det_history) < 2:
-                print(f"Skipping {t.id} due to history")
                 continue
 
             if t.predict_count < max_age:
                 current_trackers.append(t)
-            else:
-                print(f"Skipping {t.id} due to age")
 
         self.current = current_trackers
+        self.history.append([c.get_boxes() for c in self.current])
 
+    def to_mot(self):
+        lines = []
+        for i, trackers in enumerate(self.history):
+            for tracker in trackers:
+                line = f"{i+1},{','.join((str(t) for t in tracker))},-1,-1,-1,-1"
+                lines.append(line)
+        return "\n".join(lines)
 
 def linear_assignment(cost_matrix):
     x, y = linear_sum_assignment(cost_matrix)
@@ -245,7 +248,6 @@ def update(trackers: List[RoadTracker], dets: np.ndarray, iou_threshold=0.05):
     matches = []
     for m in matched:
         if iou_matrix[m[0], m[1]]<iou_threshold:
-            print(f"unmatching between {m[1]} and {m[0]}: iou: {iou_matrix[m[0],m[1]]}")
             unmatched_detections.append(m[0])
             unmatched_trackers.append(m[1])
         else:
@@ -354,7 +356,6 @@ def suppress_detections(dets: np.ndarray, thresh=0.7) -> np.ndarray:
             if bb_dets[a_max][-1] > det[-1] \
             else double_indexes
 
-        print(f"Comparing {i} and {double_indexes}")
         # delete the detections with smaller confidence
         dets = np.delete(dets, remove_idx, axis=0)
         bb_dets = np.delete(bb_dets, remove_idx, axis=0)
