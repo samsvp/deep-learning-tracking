@@ -4,10 +4,54 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import linear_sum_assignment
 from filterpy.kalman import UnscentedKalmanFilter as UKF
-from filterpy.kalman import unscented_transform, MerweScaledSigmaPoints
+from filterpy.kalman import MerweScaledSigmaPoints
 from typing import List
 
 np.random.seed(0)
+# good targets with continuous detection: 23, 24, 27
+# good targets with break: 1, 3, 24, 33
+
+def convert_det_to_z(det: np.ndarray) -> np.ndarray:
+    """
+    Takes a bounding box in the form [x1,y1,w,h] and returns z in the form
+    [x,y,s,r] where x,y is the centre of the box and s is the scale/area and r is
+    the aspect ratio
+    """
+    w = det[2]
+    h = det[3]
+    x = det[0] + w/2.
+    y = det[1] + h/2.
+    s = w * h    #scale is just area
+    r = w / float(h)
+    return np.array([x, y, s, r])
+
+def convert_x_to_det(x):
+    """
+    Takes a bounding box in the centre form [x,y,s,r] and returns it in the form
+    [x1,y1,w,h] where x1,y1 is the top left and w, h are the width and height
+    """
+    w = np.sqrt(x[2] * x[3])
+    h = x[2] / w
+    return np.array([x[0] - w / 2., x[1] - h / 2., w, h])
+
+def create_UKF(x0):
+    sigmas = MerweScaledSigmaPoints(8, alpha=.1, beta=2., kappa=1.)
+    def fx(x, _):
+        return x
+
+    def hx(x):
+        return x[:4]
+
+    ukf = UKF(dim_x=8, dim_z=4, fx=fx,
+              hx=hx, dt=1, points=sigmas)
+    ukf.x = x0
+    ukf.R = np.diag([100.0, 100.0, 100.0, 100.0]) / 2
+    ukf.P[4:,4:] *= 1000. #give high uncertainty to the unobservable initial velocities
+    ukf.P *= 10.
+    ukf.Q[:2, :2] *= 0.1
+    ukf.Q[-1,-1] *= 10
+    ukf.Q[4:,4:] *= 10
+    return ukf
 
 class RoadTracker():
     #insert unscented kalman filter
@@ -20,9 +64,14 @@ class RoadTracker():
         self.center = det[:2] + det[2:4] // 2
         self.last_center = self.center
         self.predict_count = 0
-        self.history = []
+        self.det_history = []
+        self.pred_history = []
+        self.det_pred_map = []
         self.leaders = {}
         self.followers = {}
+        z = convert_det_to_z(det)
+        x0 = np.array([z[0], z[1], z[2], z[3], 0, 0, 0, 0])
+        self.ukf = create_UKF(x0)
 
         if not is_mock:
             self.id = RoadTracker.count
@@ -33,26 +82,61 @@ class RoadTracker():
     def update(self, det):
         self.predict_count = 0
 
-        self.curr_bbox = det
-        self.last_center = self.center
-        self.center = det[:2] + det[2:4] // 2
+        z = convert_det_to_z(det)
+        self.ukf.update(z)
+
+        p_det = convert_x_to_det(self.ukf.x[:4])
+        self.curr_bbox = p_det
+        self.center = p_det[:2] + p_det[2:4] // 2
         self.delta = self.center - self.last_center
-        self.history.append(det)
+        self.det_history.append(p_det)
+        self.det_pred_map.append((
+            len(self.det_history) - 1,
+            len(self.pred_history) - 1,
+        ))
 
     def predict(self, nearest_trackers: List["RoadTracker"]) -> np.ndarray:
         """Predicts the position of the vehicle based on the position
         of nearest vehicles."""
         self.predict_count += 1
-        self.leaders, follower = find_leader_follower(self, nearest_trackers)
-        acc = idm(self)
-        print(acc)
-        v = self.center - self.last_center
-        center = self.center + v + acc / 2
-        return center
+        def fx(x, _):
+            self.center = x[:2]
+            self.leaders, follower = find_leader_follower(self, nearest_trackers)
+            acc = idm(self)
+            if self.id == 44:
+                print("acc", acc)
+            v = self.center - self.last_center
+            center = self.center + v + acc / 2
+            new_v = v + acc
+            if new_v[0] < 0:
+                new_v[0] = 0
+                center[0] = self.center[0]
+            new_x = np.array([center[0], center[1], x[2], x[3], new_v[0], new_v[1], acc[0], acc[1]])
+            return new_x
+
+        try:
+            self.ukf.predict(fx=fx)
+        except Exception as e:
+            print(f"Error on {self.id}: {e}")
+            raise e
+        x = self.ukf.x
+        self.last_center = self.center
+        self.center = x[:2]
+        p_det = convert_x_to_det(x[:4])
+        self.curr_bbox = p_det
+        self.pred_history.append(p_det)
+        return x
 
     def get_boxes(self):
         """Returns the vehicle id and its current bounding box."""
-        return (self.id, *self.curr_bbox)
+        id = self.id if self.predict_count == 0 else -self.id
+        return (id, *self.curr_bbox)
+
+    def get_pred_boxes(self):
+        if len(self.pred_history) > 0:
+            return (-self.id, *self.pred_history[-1])
+        else:
+            return []
 
     def get_leader(self):
         max_score = 0
@@ -72,15 +156,10 @@ class Trackers():
         bboxes = get_boxes(self.current)
         centers = bboxes[:, 1:3] + bboxes[:, 3:] // 2
         for t in self.current:
-            #pay attention to 23, 24, 27
-            if t.id != 24:
-                continue
-
             nearest = [self.current[i] for i in find_nearest(t.center, centers, 5)]
-            center = t.predict(nearest)
-            print(f"Predicted center for {t.id} is {center}")
+            t.predict(nearest)
 
-    def update(self, dets: np.ndarray):
+    def update(self, dets: np.ndarray, limit_x = 1000, max_age = 5):
         ms, uds, uts = update(self.current, dets)
 
         current_trackers = []
@@ -89,9 +168,6 @@ class Trackers():
             t = self.current[m[1]]
             t.update(dets[m[0]])
             current_trackers.append(t)
-            if t.id == 24:
-                print(f"True center for {t.id} is {t.center}")
-
 
         for u in uds:
             det = dets[u]
@@ -105,41 +181,33 @@ class Trackers():
             nearest = [self.current[i] for i in find_nearest(t.center, centers, 5)]
             t.leaders, t.followers = find_leader_follower(t, nearest)
 
-        for u in uts:
-            bboxes = get_boxes(self.current)
-            centers = bboxes[:, 1:3] + bboxes[:, 3:] // 2
-            #print(f"nearest to {u}:", find_nearest(self.current[u].center, centers, 3))
-
         for ut in uts:
-            ...
+            t = self.current[ut]
+            x = t.ukf.x
+            # offscreen
+            if x[0] > limit_x or x[0] < 0:
+                print(f"Skipping {t.id} due to out of bound")
+                continue
+
+            # too few frames, ignore
+            if len(t.det_history) < 2:
+                print(f"Skipping {t.id} due to history")
+                continue
+
+            if t.predict_count < max_age:
+                current_trackers.append(t)
+            else:
+                print(f"Skipping {t.id} due to age")
 
         self.current = current_trackers
 
-def create_UKF(x0, trackers, n):
-    sigmas = MerweScaledSigmaPoints(4, alpha=.1, beta=2., kappa=1.)
-    def fx(x, _):
-        nearest = find_nearest(x[:2], trackers.current, n)
-        print(nearest)
-        return x
-
-    def hx(x):
-        return x
-
-    ukf = UKF(dim_x=8, dim_z=2, fx=fx,
-              hx=hx, dt=1, points=sigmas)
-    ukf.x = x0
-    ukf.R = np.diag([0.1, 0.1])
-    ukf.P[4:,4:] *= 1000. #give high uncertainty to the unobservable initial velocities
-    ukf.P *= 10.
-    ukf.Q[-1,-1] *= 0.01
-    ukf.Q[4:,4:] *= 0.01
 
 def linear_assignment(cost_matrix):
     x, y = linear_sum_assignment(cost_matrix)
     return np.array(list(zip(x, y)))
 
 def get_detections(df: pd.DataFrame, frame: int) -> np.ndarray:
-    return df[df["frame"] == frame].values[:, 2:6] #type: ignore
+    return df[df["frame"] == frame].values[:, 2:7] #type: ignore
 
 def iou_batch(bb_test, bb_gt):
     """From SORT: Computes IOU between two bboxes in the form [x1,y1,x2,y2]"""
@@ -177,6 +245,7 @@ def update(trackers: List[RoadTracker], dets: np.ndarray, iou_threshold=0.05):
     matches = []
     for m in matched:
         if iou_matrix[m[0], m[1]]<iou_threshold:
+            print(f"unmatching between {m[1]} and {m[0]}: iou: {iou_matrix[m[0],m[1]]}")
             unmatched_detections.append(m[0])
             unmatched_trackers.append(m[1])
         else:
@@ -189,6 +258,12 @@ def update(trackers: List[RoadTracker], dets: np.ndarray, iou_threshold=0.05):
 
 def get_boxes(trackers: List[RoadTracker]) -> np.ndarray:
     return np.array([t.get_boxes() for t in trackers])
+
+def get_pred_boxes(trackers: List[RoadTracker]) -> np.ndarray:
+    return np.array([
+        t.get_pred_boxes() for t in trackers
+        if len(t.pred_history) > 0
+    ])
 
 def find_nearest(p: np.ndarray, points: np.ndarray, n: int) -> np.ndarray:
     return ((p - points) ** 2).sum(axis=1).argsort()[1:n+1]
@@ -244,45 +319,78 @@ def find_leader_follower(tracker: RoadTracker, near: List[RoadTracker]):
     return find_dir(tracker, near, dir), find_dir(tracker, near, -dir)
 
 
-def idm(vehicle: RoadTracker, v0=15, T=1.0, s0=12, a=0.3, b=0.4):
+def idm(vehicle: RoadTracker, v0=15, T=1.0, s0=12, a=1.0, b=0.4):
     leader = vehicle.get_leader()
     if leader is None:
         leader = RoadTracker(np.array([1000, 1000, 20, 20]), is_mock=True)
 
     v = vehicle.center[:2] - vehicle.last_center[:2]
     vl = leader.center[:2] - leader.last_center[:2]
-    print(f"velocities: {v}, {vl}")
     dv = v - vl
     ds = ((leader.center[:2] - vehicle.center[:2]) ** 2).sum()
+    if abs(ds) < 0.01:
+        print(vehicle.id, leader.id)
     s_star = s0 + np.maximum(0, (v * T + v * dv / (2 * np.sqrt(a * b))))
-    print(f"ds {ds}, s_star {s_star}")
     acc = a * (1 - (v / v0) ** 4 - (s_star / ds) ** 2)
-    print(vehicle.id, leader.id)
-    return acc
+    return np.maximum(np.minimum(acc, a), -a)
 
+
+def suppress_detections(dets: np.ndarray, thresh=0.7) -> np.ndarray:
+    i = 0
+    bb_dets = dets.copy()
+    bb_dets[:, 2:4] += bb_dets[:, :2]
+    while i < len(dets) - 1:
+        det = bb_dets[i]
+        iou_matrix = iou_batch(np.array([det]), bb_dets[i+1:])
+        double_indexes = np.argwhere(iou_matrix > thresh).reshape(-1) + i + 1
+        if len(double_indexes) == 0:
+            i += 1
+            continue
+
+        a_max = np.argmax(bb_dets[double_indexes][:, -1])
+        # bigger confidence on a_max
+        remove_idx = \
+            [d for d in double_indexes if d != a_max] + [i] \
+            if bb_dets[a_max][-1] > det[-1] \
+            else double_indexes
+
+        print(f"Comparing {i} and {double_indexes}")
+        # delete the detections with smaller confidence
+        dets = np.delete(dets, remove_idx, axis=0)
+        bb_dets = np.delete(bb_dets, remove_idx, axis=0)
+        i += 1
+
+    return dets[:, :4]
 
 #gt_mot = u.load_mot("10_0900_0930_D10_RM_mot.txt")
 #p_mot = u.load_mot("sort/output/pNEUMA10_8-tiny.txt")
 #acc_mot = u.load_mot("sort-acc/output/pNEUMA10_8-tiny.txt")
-det_mot = utils.load_mot_road("mots/yolo-tiny/cars-tiny-8.mot")
+det_mot = utils.load_mot("mots/yolo-tiny/cars-tiny-8.mot")
 
 #frame1 = u.get_frame("pNEUMA10/", 1)
 #u.view_frame(frame1, det_mot, 1)
 # initialize all trackers
 dets = get_detections(det_mot, 1)
+dets = suppress_detections(dets, thresh=0.3)
 trackers = Trackers(dets)
 
-for i in range(2, 15):
+for i in range(2, 1000):
     print(i)
     dets = get_detections(det_mot, i)
+    dets = suppress_detections(dets, thresh=0.3)
+
     trackers.predict()
-    trackers.update(dets)
+    trackers.update(dets, max_age=5)
 
-    frame2 = utils.get_frame("pNEUMA10/", i)
-    utils.draw_all_rects(frame2, get_boxes(trackers.current))
+    frame = utils.get_frame("pNEUMA10/", i)
+    frame_det = frame.copy()
+    utils.draw_all_rects(frame, get_boxes(trackers.current))
+    utils.draw_all_rects(frame_det, get_pred_boxes(trackers.current))
+    #utils.draw_all_rects(frame_det, [(1, *det) for det in dets]) #type: ignore
 
-    cv2.imshow("frame", frame2)
-    if cv2.waitKey(0) == ord('q'):
+    cv2.imshow("frame det", frame_det)
+    cv2.imshow("frame", frame)
+    if cv2.waitKey(1) == ord('q'):
         break
 
 cv2.destroyAllWindows()

@@ -45,14 +45,18 @@ def draw_boxes_plt(df, frame, dims):
 
 def draw_rect(frame: np.ndarray, bb: BB, id: int) -> None:
     color = get_random_color(id)
-    cv2.rectangle(
-        frame,
-        (bb.x_left, bb.y_top),
-        (bb.x_left + bb.width, bb.y_top + bb.height),
-        color=color, thickness=2
-    )
-    cv2.putText(frame, str(id), (bb.x_left, bb.y_top),
+    try:
+        cv2.rectangle(
+            frame,
+            (bb.x_left, bb.y_top),
+            (bb.x_left + bb.width, bb.y_top + bb.height),
+            color=color, thickness=2
+        )
+        cv2.putText(frame, str(id), (bb.x_left, bb.y_top),
                 cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+    except Exception as e:
+        print(id, bb)
+        raise e
 
 def view_frame(img: np.ndarray, df: pd.DataFrame, frame: int) -> None:
     img = img.copy()
@@ -99,10 +103,7 @@ def load_mot(mot_file: str) -> pd.DataFrame:
         names=["frame", "id", "bb_left", "bb_top", "bb_width", "bb_height", "conf", "x", "y", "z"]
     )
 
-    # we are only interested in the bottom part of the file
-    bottom_df = df[df["bb_top"] > 300].copy(deep=True)
-
-    return bottom_df #type: ignore
+    return df #type: ignore
 
 def load_mot_road(mot_file: str) -> pd.DataFrame:
     df = pd.read_csv(
