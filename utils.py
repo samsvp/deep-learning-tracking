@@ -43,17 +43,22 @@ def draw_boxes_plt(df, frame, dims):
         ax.add_patch(Rectangle((x, y), w, h, facecolor=np.array(color)/255))
     plt.show()
 
-def draw_rect(frame: np.ndarray, bb: BB, id: int) -> None:
+def draw_rect(frame: np.ndarray, bb: BB, id: int, conf=None) -> None:
     color = get_random_color(id)
     try:
         cv2.rectangle(
             frame,
             (bb.x_left, bb.y_top),
             (bb.x_left + bb.width, bb.y_top + bb.height),
-            color=color, thickness=2
+            color=color, thickness=1
         )
-        cv2.putText(frame, str(id), (bb.x_left, bb.y_top),
-                cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+        if conf is not None:
+            cv2.putText(frame, str(conf), (bb.x_left + 2, bb.y_top),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+        else:
+            cv2.putText(frame, str(id), (bb.x_left, bb.y_top),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 1)
+
     except Exception as e:
         print(id, bb)
         raise e
@@ -86,7 +91,7 @@ def view_frame_arr(img: np.ndarray, tracks: np.ndarray, show=False) -> None:
     if show:
         plt.show()
 
-def draw_all_rects(img: np.ndarray, tracks: np.ndarray):
+def draw_all_rects(img: np.ndarray, tracks: np.ndarray, conf=False):
     for t in tracks:
         id = int(t[0])
         w = int(t[3])
@@ -94,7 +99,10 @@ def draw_all_rects(img: np.ndarray, tracks: np.ndarray):
         x = int(t[1] + w // 2)
         y = int(t[2] + h // 2)
         bb = BB(x, y, w, h)
-        draw_rect(img, bb, id)
+        if conf:
+            draw_rect(img, bb, id, t[5])
+        else:
+            draw_rect(img, bb, id)
     return img
 
 def load_mot(mot_file: str) -> pd.DataFrame:

@@ -148,40 +148,38 @@ class RoadTracker():
 
 class Trackers():
     def __init__(self, dets: np.ndarray) -> None:
+        self.current_det = [RoadTracker(det) for det in dets]
         self.current = [RoadTracker(det) for det in dets]
         self.history = [[c.get_boxes() for c in self.current]]
 
     def predict(self):
-        bboxes = get_boxes(self.current)
+        bboxes = get_boxes(self.current_det)
         centers = bboxes[:, 1:3] + bboxes[:, 3:] // 2
-        for t in self.current:
-            nearest = [self.current[i] for i in find_nearest(t.center, centers, 5)]
+        for t in self.current_det:
+            nearest = [self.current_det[i] for i in find_nearest(t.center, centers, 5)]
             t.predict(nearest)
 
     def update(self, dets: np.ndarray, limit_x = 1000, max_age = 5):
-        ms, uds, uts = update(self.current, dets)
+        ms, uds, uts = update(self.current_det, dets)
 
         current_trackers = []
+        current_trackers_det = []
 
         for m in ms:
-            t = self.current[m[1]]
+            t = self.current_det[m[1]]
             t.update(dets[m[0]])
             current_trackers.append(t)
+            current_trackers_det.append(t)
 
         for u in uds:
             det = dets[u]
             t = RoadTracker(det)
-            current_trackers.append(t)
+            current_trackers_det.append(t)
 
-        bboxes = get_boxes(self.current)
-        centers = bboxes[:, 1:3] + bboxes[:, 3:] // 2
         current_trackers.sort(key=lambda t: t.id)
-        for t in current_trackers:
-            nearest = [self.current[i] for i in find_nearest(t.center, centers, 5)]
-            t.leaders, t.followers = find_leader_follower(t, nearest)
 
         for ut in uts:
-            t = self.current[ut]
+            t = self.current_det[ut]
             x = t.ukf.x
             # offscreen
             if x[0] > limit_x or x[0] < 0:
@@ -193,8 +191,10 @@ class Trackers():
 
             if t.predict_count < max_age:
                 current_trackers.append(t)
+                current_trackers_det.append(t)
 
         self.current = current_trackers
+        self.current_det = current_trackers_det
         self.history.append([c.get_boxes() for c in self.current])
 
     def to_mot(self):
@@ -237,13 +237,15 @@ def update(trackers: List[RoadTracker], dets: np.ndarray, iou_threshold=0.05):
     dets[:, 2:] += dets[:, :2]
     iou_matrix = iou_batch(dets, boxes)
     matched = linear_assignment(-iou_matrix)
+
     unmatched_detections = []
     for d, _ in enumerate(dets):
-        if(d not in matched[:,0]):
+        if d not in matched[:,0]:
             unmatched_detections.append(d)
+
     unmatched_trackers = []
     for t, _ in enumerate(trackers):
-        if(t not in matched[:,1]):
+        if t not in matched[:,1]:
             unmatched_trackers.append(t)
 
     #filter out matched with low IOU
@@ -258,6 +260,13 @@ def update(trackers: List[RoadTracker], dets: np.ndarray, iou_threshold=0.05):
         matches = np.empty((0,2),dtype=int)
     else:
         matches = np.concatenate(matches,axis=0)
+
+    i = len(unmatched_detections)
+    for u in reversed(unmatched_detections):
+        if sum(iou_matrix[u] > iou_threshold) >= 1:
+            unmatched_detections.pop(i-1)
+        i -= 1
+
     return matches, unmatched_detections, unmatched_trackers
 
 def get_boxes(trackers: List[RoadTracker]) -> np.ndarray:
@@ -380,26 +389,31 @@ trackers = Trackers(dets)
 for i in range(2, 1908):
     print(i)
     dets = get_detections(det_mot, i)
+    raw_dets = dets.copy()
+
     dets = suppress_detections(dets, thresh=0.3)
 
     trackers.predict()
     trackers.update(dets, max_age=5)
 
-    """
+"""
     frame = utils.get_frame("pNEUMA10/", i)
     frame_det = frame.copy()
+    frame_raw_dets = frame.copy()
     utils.draw_all_rects(frame, get_boxes(trackers.current))
-    utils.draw_all_rects(frame_det, get_pred_boxes(trackers.current))
-    #utils.draw_all_rects(frame_det, [(1, *det) for det in dets]) #type: ignore
+    utils.draw_all_rects(frame_det, get_boxes(trackers.current_det))
+    #utils.draw_all_rects(frame_det, get_pred_boxes(trackers.current))
+    utils.draw_all_rects(frame_raw_dets, [(i, *det) for i, det in enumerate(raw_dets)], True) #type: ignore
 
-    cv2.imshow("frame det", frame_det)
     cv2.imshow("frame", frame)
-    if cv2.waitKey(1) == ord('q'):
+    cv2.imshow("frame det", frame_det)
+    cv2.imshow("frame raw det", frame_raw_dets)
+    if cv2.waitKey(0) == ord('q'):
         break
 
-    cv2.destroyAllWindows()
-    """
+cv2.destroyAllWindows()
 
+"""
 mot = trackers.to_mot()
 with open("road.mot", 'w') as fp:
     fp.write(mot)
