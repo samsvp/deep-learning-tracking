@@ -201,6 +201,8 @@ class Trackers():
         lines = []
         for i, trackers in enumerate(self.history):
             for tracker in trackers:
+                if tracker[0] < 0:
+                    continue
                 line = f"{i+1},{','.join((str(t) for t in tracker))},-1,-1,-1,-1"
                 lines.append(line)
         return "\n".join(lines)
@@ -375,7 +377,7 @@ dets = get_detections(det_mot, 1)
 dets = suppress_detections(dets, thresh=0.3)
 trackers = Trackers(dets)
 
-for i in range(2, 1000):
+for i in range(2, 1908):
     print(i)
     dets = get_detections(det_mot, i)
     dets = suppress_detections(dets, thresh=0.3)
@@ -383,6 +385,7 @@ for i in range(2, 1000):
     trackers.predict()
     trackers.update(dets, max_age=5)
 
+    """
     frame = utils.get_frame("pNEUMA10/", i)
     frame_det = frame.copy()
     utils.draw_all_rects(frame, get_boxes(trackers.current))
@@ -394,6 +397,11 @@ for i in range(2, 1000):
     if cv2.waitKey(1) == ord('q'):
         break
 
-cv2.destroyAllWindows()
+    cv2.destroyAllWindows()
+    """
 
+mot = trackers.to_mot()
+with open("road.mot", 'w') as fp:
+    fp.write(mot)
 
+print("done")
