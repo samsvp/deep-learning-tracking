@@ -11,6 +11,7 @@ ByteTrack/byte-env/
 __pycache__/
 *.py[cod]
 *$py.class
+idm-tracker/out.mot
 
 # C extensions
 *.so

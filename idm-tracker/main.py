@@ -1,56 +1,127 @@
-import utils
+from tqdm import tqdm
 import numpy as np
+import argparse
 import pandas as pd
 from idm_tracker import *
 import draw
 import cv2
-import utils
 
 np.random.seed(0)
 
-def get_boxes(trackers: List[VehicleTracker]) -> np.ndarray:
+
+def load_mot(mot_file: str) -> pd.DataFrame:
+    return pd.read_csv(
+        mot_file,
+        names=[
+            "frame",
+            "id",
+            "bb_left",
+            "bb_top",
+            "bb_width",
+            "bb_height",
+            "conf",
+            "x",
+            "y",
+            "z"]
+    )
+
+
+def load_mot_road(mot_file: str) -> pd.DataFrame:
+    df = pd.read_csv(
+        mot_file,
+        names=[
+            "frame",
+            "id",
+            "bb_left",
+            "bb_top",
+            "bb_width",
+            "bb_height",
+            "conf",
+            "x",
+            "y",
+            "z"]
+    )
+
+    # we are only interested in the bottom part of the file
+    bottom_df = df[df["bb_top"] > 350].copy(deep=True)
+
+    return bottom_df  # type: ignore
+
+
+def get_boxes(trackers: List[Vehicle]) -> np.ndarray:
     return np.array([t.get_boxes() for t in trackers])
 
+
 def get_detections(df: pd.DataFrame, frame: int) -> np.ndarray:
-    return df[df["frame"] == frame].values[:, 2:7] #type: ignore
+    return df[df["frame"] == frame].values[:, 2:7]  # type: ignore
 
-#gt_mot = u.load_mot("10_0900_0930_D10_RM_mot.txt")
-#p_mot = u.load_mot("sort/output/pNEUMA10_8-tiny.txt")
-#acc_mot = u.load_mot("sort-acc/output/pNEUMA10_8-tiny.txt")
-det_mot = utils.load_mot_road("../mots/yolo-tiny/cars-tiny-8.mot")
 
-#frame1 = u.get_frame("pNEUMA10/", 1)
-#u.view_frame(frame1, det_mot, 1)
-# initialize all trackers
-dets = get_detections(det_mot, 1)
-trackers = Trackers(dets)
+def get_pred_boxes(trackers: List[Vehicle]) -> np.ndarray:
+    return np.array([
+        t.get_pred_boxes() for t in trackers
+        if len(t.pred_history) > 0
+    ])
 
-for i in range(2, 1908):
-    print(i)
-    dets = get_detections(det_mot, i)
-    raw_dets = dets.copy()
 
-    trackers.predict()
-    trackers.update(dets, max_age=5)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-d",
+        "--det-file",
+        help="File with detections in the mot format, where all ids are -1")
+    parser.add_argument(
+        "--dir-x",
+        help="Road direction in the X axis. 1 means that the vehicles move from left to right, -1 from right to left.",
+        type=int,
+        default=0)
+    parser.add_argument(
+        "--dir-y",
+        help="Road direction in the Y axis. 1 means that the vehicles move from top to bottom, -1 from bottom to top.",
+        type=int,
+        default=0)
+    parser.add_argument(
+        "-o",
+        "--out-file",
+        help="File to save outputs",
+        default="out.mot")
+    parser.add_argument(
+        "-s",
+        "--show-tracking",
+        help="Show real time tracking",
+        action="store_true")
+    parser.add_argument(
+        "--images-dir",
+        help="Images in the format {frame_n}.jpg, where frame_n is padded with 0s to have 5 digits.",
+        required=False)
+    args = parser.parse_args()
 
-    frame = draw.get_frame("../pNEUMA10/", i)
-    frame_det = frame.copy()
-    frame_raw_dets = frame.copy()
-    draw.draw_all_rects(frame, get_boxes(trackers.current))
-    draw.draw_all_rects(frame_det, get_boxes(trackers.current_det))
-    #draw.draw_all_rects(frame_det, get_pred_boxes(trackers.current))
-    draw.draw_all_rects(frame_raw_dets, [(i, *det) for i, det in enumerate(raw_dets)], True) #type: ignore
+    det_mot = load_mot(args.det_file)
 
-    cv2.imshow("frame", frame)
-    cv2.imshow("frame det", frame_det)
-    cv2.imshow("frame raw det", frame_raw_dets)
-    if cv2.waitKey(1) == ord('q'):
-        break
+    dets = get_detections(det_mot, 1)
+    trackers = VehicleTrackers(dets)
 
-cv2.destroyAllWindows()
+    for i in tqdm(range(2, det_mot.frame.max())):
+        dets = get_detections(det_mot, i)
+        raw_dets = dets.copy()
 
-mot = trackers.to_mot()
-with open("road.mot", 'w') as fp:
-    fp.write(mot)
+        trackers.predict()
+        trackers.update(dets, max_age=5)
 
-print("done")
+        if args.show_tracking:
+            frame = draw.get_frame(args.images_dir, i)
+            frame_det = frame.copy()
+            frame_raw_dets = frame.copy()
+            draw.draw_all_rects(frame, get_boxes(trackers.current))
+
+            cv2.imshow("frame", frame)
+            if cv2.waitKey(1) == ord('q'):
+                break
+
+    if args.show_tracking:
+        cv2.destroyAllWindows()
+
+    mot = trackers.to_mot()
+    with open(args.out_file, 'w') as fp:
+        fp.write(mot)
+
+    print("done")
