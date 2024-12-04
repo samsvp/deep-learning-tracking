@@ -252,7 +252,7 @@ if __name__ == '__main__':
         seq_dets = np.loadtxt(seq_dets_fn, delimiter=',')
         seq = seq_dets_fn[pattern.find('*'):].split(os.path.sep)[0]
 
-        with open(os.path.join('output', '%s.txt' % (seq)), 'w') as out_file:
+        with open(os.path.join('output', f'{seq}-{args.kalman_filter}.txt'), 'w') as out_file:
             print("Processing %s." % (seq))
             for frame in range(int(seq_dets[:, 0].max())):
                 frame += 1  # detection and frame numbers begin at 1
