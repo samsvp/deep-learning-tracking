@@ -234,6 +234,8 @@ class Vehicle():
         vl = leader.center[:2] - leader.last_center[:2]
         dv = v - vl
         ds = ((leader.center[:2] - self.center[:2]) ** 2).sum()
+        if np.abs(ds) < 0.0001:
+            print(f"Distance from leader too low for id {self.id}")
         s_star = s0 + np.maximum(0, (v * T + v * dv / (2 * np.sqrt(a * b))))
         acc = a * (1 - (v / v0) ** 4 - (s_star / ds) ** 2)
         return np.maximum(np.minimum(acc, a), -a)

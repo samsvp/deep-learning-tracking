@@ -93,6 +93,11 @@ if __name__ == "__main__":
         "--images-dir",
         help="Images in the format {frame_n}.jpg, where frame_n is padded with 0s to have 5 digits.",
         required=False)
+    parser.add_argument(
+        "-p",
+        "--progress-bar",
+        help="Show progress bar",
+        action="store_true")
     args = parser.parse_args()
 
     det_mot = load_mot(args.det_file)
@@ -100,7 +105,9 @@ if __name__ == "__main__":
     dets = get_detections(det_mot, 1)
     trackers = VehicleTrackers(dets)
 
-    for i in tqdm(range(2, det_mot.frame.max())):
+    print(f"Running file {args.det_file}. Output: {args.out_file}")
+
+    for i in tqdm(range(2, det_mot.frame.max()), disable=not args.progress_bar):
         dets = get_detections(det_mot, i)
         raw_dets = dets.copy()
 
@@ -124,4 +131,4 @@ if __name__ == "__main__":
     with open(args.out_file, 'w') as fp:
         fp.write(mot)
 
-    print("done")
+    print(f"{args.det_file} done")

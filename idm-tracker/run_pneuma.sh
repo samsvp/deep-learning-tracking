@@ -9,4 +9,4 @@ run() {
 export -f run
 
 FILES=$(ls ../mots/yolo-tiny/cars*)
-printf '%s\n' $FILES | parallel -j4 run {1}
+printf '%s\n' $FILES | parallel -u -j4 run {1}
