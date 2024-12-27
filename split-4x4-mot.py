@@ -4,7 +4,7 @@ ids range from 0 to 15 (image was split into 16 different patches)
 """
 
 import sys
-import pandas as pd 
+import pandas as pd
 
 id = int(sys.argv[1])
 
@@ -30,7 +30,7 @@ fdf['bb_top'] -= init_y
 fdf['bb_left'] -= init_x
 
 
-fdf.to_csv("10_0900_0930_D10_RM_mot.txt",
+fdf.to_csv(f"{id}_0900_0930_D10_RM_mot.txt",
            index=False, header=False)
 
 print(fdf.shape)

@@ -89,7 +89,7 @@ def colormap(rgb=False):
             0.857, 0.857, 0.857,
             1.000, 1.000, 1.000
         ]
-    ).astype(np.float32)
+    ).astype(float)
     color_list = color_list.reshape((-1, 3)) * 255
     if not rgb:
         color_list = color_list[:, ::-1]

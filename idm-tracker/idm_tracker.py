@@ -267,6 +267,9 @@ class VehicleTrackers():
             (p - points) ** 2).sum(axis=1).argsort()[1:n + 1]
 
         bboxes = np.array([t.get_boxes() for t in self.current_det])
+        if len(bboxes) == 0:
+            return
+
         centers = bboxes[:, 1:3] + bboxes[:, 3:] // 2
         for t in self.current_det:
             nearest = [self.current_det[i]
@@ -277,7 +280,9 @@ class VehicleTrackers():
         boxes = np.array([t.curr_bbox for t in self.current_det])
         dets = dets.copy()
         boxes[:, 2:] += boxes[:, :2]
+
         dets[:, 2:] += dets[:, :2]
+
         iou_matrix = iou_batch(dets, boxes)
 
         x, y = linear_sum_assignment(-iou_matrix)
@@ -285,12 +290,12 @@ class VehicleTrackers():
 
         unmatched_detections = []
         for d, _ in enumerate(dets):
-            if d not in matched[:, 0]:
+            if len(matched) == 0 or d not in matched[:, 0]:
                 unmatched_detections.append(d)
 
         unmatched_trackers = []
         for t, _ in enumerate(self.current_det):
-            if t not in matched[:, 1]:
+            if len(matched) == 0 or t not in matched[:, 1]:
                 unmatched_trackers.append(t)
 
         # filter out matched with low IOU
@@ -316,7 +321,14 @@ class VehicleTrackers():
 
     def update(self, dets: np.ndarray, limit_x=1000, max_age=5):
         dets = suppress_detections(dets, thresh=0.3)
-        ms, uds, uts = self.get_matches(dets)
+        if len(dets) > 0 and len(self.current_det) == 0:
+            dets = suppress_detections(dets, thresh=0.3)
+            self.current_det = [Vehicle(det, self.road_dir_x, self.road_dir_y) for det in dets]
+            self.current = self.current_det.copy()
+            self.history.append([c.get_boxes() for c in self.current])
+            return
+
+        ms, uds, uts = self.get_matches(dets) if len(dets) > 0 else ([], [], [i for i in range(len(self.current_det))])
 
         current_trackers = []
         current_trackers_det = []

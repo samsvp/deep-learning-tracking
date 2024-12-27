@@ -6,13 +6,13 @@ without id assignment. Useful for some trackers implementations
 import os
 import json
 import argparse
-import pandas as pd 
+import pandas as pd
 
 
 def yolo_to_mot(csv_name: str, folder: str, width: int, height: int) -> None:
     files = [os.path.join(folder, f) for f in os.listdir(folder)]
-    names=["frame", "id", "bb_left", "bb_top", 
-            "bb_width", "bb_height", "conf", 
+    names=["frame", "id", "bb_left", "bb_top",
+            "bb_width", "bb_height", "conf",
             "x", "y", "z"]
     all_data = []
     for file in files:
@@ -21,12 +21,12 @@ def yolo_to_mot(csv_name: str, folder: str, width: int, height: int) -> None:
                          names=["class_id", "cx", "cy", "w", "h", "conf"])
         for _, row in det_df.iterrows():
             all_data.append({
-                "frame": frame, "id": -1, 
+                "frame": frame, "id": -1,
                 "bb_left": (row["cx"] - row["w"])*width,
-                "bb_top": (row["cy"] - row["h"])*height, 
+                "bb_top": (row["cy"] - row["h"])*height,
                 "bb_width": row["w"] * width,
-                "bb_height": row["h"] * height, 
-                "conf": row["conf"], 
+                "bb_height": row["h"] * height,
+                "conf": row["conf"],
                 "x": -1, "y": -1, "z": -1
             })
 
@@ -43,15 +43,15 @@ def fastrcnn_to_mot(csv_name: str, filename: str, width: int, height: int) -> No
         frame = d['image_id']
         bb = d['bbox']
         all_data.append({
-            "frame": frame, "id": -1, 
+            "frame": frame, "id": -1,
             "bb_left": (bb[0] - bb[2]//2),
-            "bb_top": (bb[1] - bb[3]//2), 
+            "bb_top": (bb[1] - bb[3]//2),
             "bb_width": bb[2],
-            "bb_height": bb[3], 
-            "conf": 0.8, 
+            "bb_height": bb[3],
+            "conf": 0.8,
             "x": -1, "y": -1, "z": -1
         })
-    
+
     pd.DataFrame(all_data).sort_values(by=["frame"]).to_csv(csv_name, header=False, index=False)
 
 
@@ -62,6 +62,6 @@ if __name__ == "__main__":
     parser.add_argument('-w', '--width', type=float, help="original image width")
     parser.add_argument('-t', '--height', type=float, help="original image height")
     args = parser.parse_args()
-    #yolo_to_mot(args.name, args.folder, args.width, args.height)
-    fastrcnn_to_mot(args.name, args.folder, args.width, args.height)
+    yolo_to_mot(args.name, args.folder, args.width, args.height)
+    #fastrcnn_to_mot(args.name, args.folder, args.width, args.height)
 

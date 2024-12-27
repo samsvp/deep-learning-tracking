@@ -51,7 +51,7 @@ def motMetricsEnhancedCalculator(gt: np.ndarray, t: np.ndarray, print_results=Fa
         )
         print(strsummary)
 
-    
+
     return summary
 
 
@@ -60,4 +60,9 @@ if __name__ == "__main__":
     parser.add_argument('-g', '--ground_truth', type=str, help='Detections ground truth')
     parser.add_argument('-d', '--detections', type=str, help='Predicted Detections')
     args = parser.parse_args()
-    motMetricsEnhancedCalculator(args.ground_truth, args.detections, print_results=True)
+    ground_truth = pd.read_csv(args.ground_truth,
+                 names=["frame", "id", "bb_left", "bb_top", "bb_width", "bb_height", "conf", "x", "y", "z"]).values
+
+    detections = pd.read_csv(args.detections,
+                 names=["frame", "id", "bb_left", "bb_top", "bb_width", "bb_height", "conf", "x", "y", "z"]).values
+    motMetricsEnhancedCalculator(ground_truth, detections, print_results=True)

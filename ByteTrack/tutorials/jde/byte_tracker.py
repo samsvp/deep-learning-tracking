@@ -13,7 +13,7 @@ class STrack(BaseTrack):
     def __init__(self, tlwh, score):
 
         # wait activate
-        self._tlwh = np.asarray(tlwh, dtype=np.float)
+        self._tlwh = np.asarray(tlwh, dtype=float)
         self.kalman_filter = None
         self.mean, self.covariance = None, None
         self.is_activated = False
@@ -163,7 +163,7 @@ class BYTETracker(object):
 
         Parameters
         ----------
-        im_blob : torch.float32
+        im_blob : torch.float
                   Tensor of shape depending upon the size of image. By default, shape of this tensor is [1, 3, 608, 1088]
 
         img0 : ndarray

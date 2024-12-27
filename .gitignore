@@ -1,3 +1,4 @@
+pNEUMA/
 bin/
 lib/
 lib64/
@@ -11,7 +12,7 @@ ByteTrack/byte-env/
 __pycache__/
 *.py[cod]
 *$py.class
-idm-tracker/out.mot
+idm-tracker/out*.mot
 
 # C extensions
 *.so

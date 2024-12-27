@@ -163,4 +163,4 @@ _COLORS = np.array(
         0.314, 0.717, 0.741,
         0.50, 0.5, 0
     ]
-).astype(np.float32).reshape(-1, 3)
+).astype(float).reshape(-1, 3)

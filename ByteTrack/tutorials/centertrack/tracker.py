@@ -35,17 +35,17 @@ class Tracker(object):
         M = len(self.tracks)
 
         dets = np.array(
-            [det['ct'] + det['tracking'] for det in results], np.float32)  # N x 2
+            [det['ct'] + det['tracking'] for det in results], float)  # N x 2
         track_size = np.array([((track['bbox'][2] - track['bbox'][0]) * \
                                 (track['bbox'][3] - track['bbox'][1])) \
-                               for track in self.tracks], np.float32)  # M
+                               for track in self.tracks], float)  # M
         track_cat = np.array([track['class'] for track in self.tracks], np.int32)  # M
         item_size = np.array([((item['bbox'][2] - item['bbox'][0]) * \
                                (item['bbox'][3] - item['bbox'][1])) \
-                              for item in results], np.float32)  # N
+                              for item in results], float)  # N
         item_cat = np.array([item['class'] for item in results], np.int32)  # N
         tracks = np.array(
-            [pre_det['ct'] for pre_det in self.tracks], np.float32)  # M x 2
+            [pre_det['ct'] for pre_det in self.tracks], float)  # M x 2
         dist = (((tracks.reshape(1, -1, 2) - \
                   dets.reshape(-1, 1, 2)) ** 2).sum(axis=2))  # N x M
 
@@ -56,7 +56,7 @@ class Tracker(object):
         
         if self.opt.hungarian:
             assert not self.opt.hungarian, 'we only verify centertrack with greedy_assignment'
-            item_score = np.array([item['score'] for item in results], np.float32)  # N
+            item_score = np.array([item['score'] for item in results], float)  # N
             dist[dist > 1e18] = 1e18
             matched_indices = linear_assignment(dist)
         else:
@@ -91,7 +91,7 @@ class Tracker(object):
         if self.opt.public_det and len(unmatched_dets) > 0:
             assert not self.opt.public_det, 'we only verify centertrack with private detection'
             # Public detection: only create tracks from provided detections
-            pub_dets = np.array([d['ct'] for d in public_det], np.float32)
+            pub_dets = np.array([d['ct'] for d in public_det], float)
             dist3 = ((dets.reshape(-1, 1, 2) - pub_dets.reshape(1, -1, 2)) ** 2).sum(
                 axis=2)
             matched_dets = [d for d in range(dets.shape[0]) \
@@ -130,17 +130,17 @@ class Tracker(object):
         
         if N > 0 and M > 0:
             dets = np.array(
-                [det['ct'] + det['tracking'] for det in results_second], np.float32)  # N x 2
+                [det['ct'] + det['tracking'] for det in results_second], float)  # N x 2
             track_size = np.array([((track['bbox'][2] - track['bbox'][0]) * \
                                     (track['bbox'][3] - track['bbox'][1])) \
-                                   for track in self_tracks_second], np.float32)  # M
+                                   for track in self_tracks_second], float)  # M
             track_cat = np.array([track['class'] for track in self_tracks_second], np.int32)  # M
             item_size = np.array([((item['bbox'][2] - item['bbox'][0]) * \
                                    (item['bbox'][3] - item['bbox'][1])) \
-                                  for item in results_second], np.float32)  # N
+                                  for item in results_second], float)  # N
             item_cat = np.array([item['class'] for item in results_second], np.int32)  # N
             tracks_second = np.array(
-                [pre_det['ct'] for pre_det in self_tracks_second], np.float32)  # M x 2
+                [pre_det['ct'] for pre_det in self_tracks_second], float)  # M x 2
             dist = (((tracks_second.reshape(1, -1, 2) - \
                       dets.reshape(-1, 1, 2)) ** 2).sum(axis=2))  # N x M
 

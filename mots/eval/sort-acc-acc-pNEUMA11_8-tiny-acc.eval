@@ -1,0 +1,2 @@
+,num_frames,idf1,idp,idr,recall,precision,num_objects,mostly_tracked,partially_tracked,mostly_lost,num_false_positives,num_misses,num_switches,num_fragmentations,mota,motp
+acc,1907,0.46101548892176875,0.6354553903345725,0.36171932402645113,0.4304628949301984,0.7562216026435358,68050,100,306,463,9443,38757,382,758,0.28608376193975016,0.29532040140216564

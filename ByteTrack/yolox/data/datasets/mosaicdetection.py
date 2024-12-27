@@ -177,7 +177,7 @@ class MosaicDetection(Dataset):
             img,
             (int(img.shape[1] * cp_scale_ratio), int(img.shape[0] * cp_scale_ratio)),
             interpolation=cv2.INTER_LINEAR,
-        ).astype(np.float32)
+        ).astype(float)
         cp_img[
             : int(img.shape[0] * cp_scale_ratio), : int(img.shape[1] * cp_scale_ratio)
         ] = resized_img
@@ -236,7 +236,7 @@ class MosaicDetection(Dataset):
             labels = labels[labels[:, 1] < target_h]
             labels = labels[labels[:, 3] > 0]
             origin_labels = np.vstack((origin_labels, labels))
-            origin_img = origin_img.astype(np.float32)
-            origin_img = 0.5 * origin_img + 0.5 * padded_cropped_img.astype(np.float32)
+            origin_img = origin_img.astype(float)
+            origin_img = 0.5 * origin_img + 0.5 * padded_cropped_img.astype(float)
 
         return origin_img, origin_labels

@@ -40,7 +40,7 @@ def crop_mot(image, target, region):
 
     if "boxes" in target:
         boxes = target["boxes"]
-        max_size = torch.as_tensor([w, h], dtype=torch.float32)
+        max_size = torch.as_tensor([w, h], dtype=torch.float)
         cropped_boxes = boxes - torch.as_tensor([j, i, j, i])
         
         for i, box in enumerate(cropped_boxes):
@@ -117,7 +117,7 @@ def random_shift(image, target, region, sizes):
 
     if "boxes" in target:
         boxes = target["boxes"]
-        max_size = torch.as_tensor([w, h], dtype=torch.float32)
+        max_size = torch.as_tensor([w, h], dtype=torch.float)
         cropped_boxes = boxes - torch.as_tensor([j, i, j, i])
 
         for i, box in enumerate(cropped_boxes):
@@ -185,7 +185,7 @@ def crop(image, target, region):
 
     if "boxes" in target:
         boxes = target["boxes"]
-        max_size = torch.as_tensor([w, h], dtype=torch.float32)
+        max_size = torch.as_tensor([w, h], dtype=torch.float)
         cropped_boxes = boxes - torch.as_tensor([j, i, j, i])
         cropped_boxes = torch.min(cropped_boxes.reshape(-1, 2, 2), max_size)
         cropped_boxes = cropped_boxes.clamp(min=0)
@@ -607,7 +607,7 @@ class Normalize(object):
         if "boxes" in target:
             boxes = target["boxes"]
             boxes = box_xyxy_to_cxcywh(boxes)
-            boxes = boxes / torch.tensor([w, h, w, h], dtype=torch.float32)
+            boxes = boxes / torch.tensor([w, h, w, h], dtype=torch.float)
             target["boxes"] = boxes
         return image, target
 

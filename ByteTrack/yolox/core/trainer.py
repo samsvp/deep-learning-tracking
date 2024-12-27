@@ -48,7 +48,7 @@ class Trainer:
         self.use_model_ema = exp.ema
 
         # data/dataloader related attr
-        self.data_type = torch.float16 if args.fp16 else torch.float32
+        self.data_type = torch.float16 if args.fp16 else torch.float
         self.input_size = exp.input_size
         self.best_ap = 0
 

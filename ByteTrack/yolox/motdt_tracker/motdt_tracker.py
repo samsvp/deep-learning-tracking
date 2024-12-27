@@ -21,7 +21,7 @@ class STrack(BaseTrack):
     def __init__(self, tlwh, score, max_n_features=100, from_det=True):
 
         # wait activate
-        self._tlwh = np.asarray(tlwh, dtype=np.float)
+        self._tlwh = np.asarray(tlwh, dtype=float)
         self.kalman_filter = None
         self.mean, self.covariance = None, None
         self.is_activated = False
@@ -237,8 +237,8 @@ class OnlineTracker(object):
             tracks = [STrack(t.self_tracking(image), 0.6 * t.tracklet_score(), from_det=False)
                         for t in itertools.chain(self.tracked_stracks, self.lost_stracks) if t.is_activated]
             detections.extend(tracks)
-        rois = np.asarray([d.tlbr for d in detections], dtype=np.float32)
-        scores = np.asarray([d.score for d in detections], dtype=np.float32)
+        rois = np.asarray([d.tlbr for d in detections], dtype=float)
+        scores = np.asarray([d.score for d in detections], dtype=float)
         # nms
         if len(detections) > 0:
             nms_out_index = torchvision.ops.batched_nms(

@@ -169,7 +169,7 @@ def run_each_dataset(model_dir, retinanet, dataset_path, subset, cur_dataset):
 			resize_h, resize_w = math.ceil(img_h / 32) * 32, math.ceil(img_w / 32) * 32
 			img1 = np.zeros((resize_h, resize_w, 3), dtype=img_origin1.dtype)
 			img1[:img_h, :img_w, :] = img_origin1
-			img1 = (img1.astype(np.float32) / 255.0 - np.array([[RGB_MEAN]])) / np.array([[RGB_STD]])
+			img1 = (img1.astype(float) / 255.0 - np.array([[RGB_MEAN]])) / np.array([[RGB_STD]])
 			img1 = torch.from_numpy(img1).permute(2, 0, 1).view(1, 3, resize_h, resize_w)
 			scores, transformed_anchors, last_feat = retinanet(img1.cuda().float(), last_feat=last_feat)
 # 			if idx > 0:

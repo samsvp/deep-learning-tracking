@@ -13,8 +13,8 @@ class BB:
     width: int
     height: int
 
-def get_frame(path: str, frame: int) -> np.ndarray:
-    raw_name = f"{frame}-10.jpg"
+def get_frame(path: str, frame: int, ext: str = "jpg") -> np.ndarray:
+    raw_name = f"{frame}.{ext}"
     padded_name = (5 - len(str(frame))) * "0" + raw_name
     name = os.path.join(path, padded_name)
     img = cv2.imread(name)

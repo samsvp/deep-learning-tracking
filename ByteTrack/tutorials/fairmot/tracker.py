@@ -25,7 +25,7 @@ class STrack(BaseTrack):
     def __init__(self, tlwh, score, temp_feat, buffer_size=30):
 
         # wait activate
-        self._tlwh = np.asarray(tlwh, dtype=np.float)
+        self._tlwh = np.asarray(tlwh, dtype=float)
         self.kalman_filter = None
         self.mean, self.covariance = None, None
         self.is_activated = False
@@ -198,8 +198,8 @@ class JDETracker(object):
         self.buffer_size = int(frame_rate / 30.0 * opt.track_buffer)
         self.max_time_lost = self.buffer_size
         self.max_per_image = opt.K
-        self.mean = np.array(opt.mean, dtype=np.float32).reshape(1, 1, 3)
-        self.std = np.array(opt.std, dtype=np.float32).reshape(1, 1, 3)
+        self.mean = np.array(opt.mean, dtype=float).reshape(1, 1, 3)
+        self.std = np.array(opt.std, dtype=float).reshape(1, 1, 3)
 
         self.kalman_filter = KalmanFilter()
 
@@ -210,14 +210,14 @@ class JDETracker(object):
             dets.copy(), [meta['c']], [meta['s']],
             meta['out_height'], meta['out_width'], self.opt.num_classes)
         for j in range(1, self.opt.num_classes + 1):
-            dets[0][j] = np.array(dets[0][j], dtype=np.float32).reshape(-1, 5)
+            dets[0][j] = np.array(dets[0][j], dtype=float).reshape(-1, 5)
         return dets[0]
 
     def merge_outputs(self, detections):
         results = {}
         for j in range(1, self.opt.num_classes + 1):
             results[j] = np.concatenate(
-                [detection[j] for detection in detections], axis=0).astype(np.float32)
+                [detection[j] for detection in detections], axis=0).astype(float)
 
         scores = np.hstack(
             [results[j][:, 4] for j in range(1, self.opt.num_classes + 1)])
@@ -240,7 +240,7 @@ class JDETracker(object):
         height = img0.shape[0]
         inp_height = im_blob.shape[2]
         inp_width = im_blob.shape[3]
-        c = np.array([width / 2., height / 2.], dtype=np.float32)
+        c = np.array([width / 2., height / 2.], dtype=float)
         s = max(float(inp_width) / float(inp_height) * height, width) * 1.0
         meta = {'c': c, 's': s,
                 'out_height': inp_height // self.opt.down_ratio,
@@ -457,7 +457,7 @@ def remove_fp_stracks(stracksa, n_frame=10):
     remain = []
     for t in stracksa:
         score_5 = t.score_list[-n_frame:]
-        score_5 = np.array(score_5, dtype=np.float32)
+        score_5 = np.array(score_5, dtype=float)
         index = score_5 < 0.45
         num = np.sum(index)
         if num < n_frame:

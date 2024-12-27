@@ -110,7 +110,7 @@ class QDTrack(TwoStageDetector):
                                         self.roi_head.bbox_head.num_classes)
         else:
             track_result = [
-                np.zeros((0, 6), dtype=np.float32)
+                np.zeros((0, 6), dtype=float)
                 for i in range(self.roi_head.bbox_head.num_classes)
             ]
         return dict(bbox_results=bbox_result, track_results=track_result)

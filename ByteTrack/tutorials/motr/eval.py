@@ -192,7 +192,7 @@ class MOTR(object):
 
 
 def load_label(label_path: str, img_size: tuple) -> dict:
-    labels0 = np.loadtxt(label_path, dtype=np.float32).reshape(-1, 6)
+    labels0 = np.loadtxt(label_path, dtype=float).reshape(-1, 6)
     h, w = img_size
     # Normalized cewh to pixel xyxy format
     labels = labels0.copy()

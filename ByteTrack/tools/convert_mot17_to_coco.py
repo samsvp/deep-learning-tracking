@@ -67,12 +67,12 @@ if __name__ == '__main__':
             print('{}: {} images'.format(seq, num_images))
             if split != 'test':
                 det_path = os.path.join(seq_path, 'det/det.txt')
-                anns = np.loadtxt(ann_path, dtype=np.float32, delimiter=',')
-                dets = np.loadtxt(det_path, dtype=np.float32, delimiter=',')
+                anns = np.loadtxt(ann_path, dtype=float, delimiter=',')
+                dets = np.loadtxt(det_path, dtype=float, delimiter=',')
                 if CREATE_SPLITTED_ANN and ('half' in split):
                     anns_out = np.array([anns[i] for i in range(anns.shape[0])
                                          if int(anns[i][0]) - 1 >= image_range[0] and
-                                         int(anns[i][0]) - 1 <= image_range[1]], np.float32) 
+                                         int(anns[i][0]) - 1 <= image_range[1]], float) 
                     anns_out[:, 0] -= image_range[0]
                     gt_out = os.path.join(seq_path, 'gt/gt_{}.txt'.format(split))
                     fout = open(gt_out, 'w')
@@ -84,7 +84,7 @@ if __name__ == '__main__':
                 if CREATE_SPLITTED_DET and ('half' in split):
                     dets_out = np.array([dets[i] for i in range(dets.shape[0])
                                          if int(dets[i][0]) - 1 >= image_range[0] and
-                                         int(dets[i][0]) - 1 <= image_range[1]], np.float32)
+                                         int(dets[i][0]) - 1 <= image_range[1]], float)
                     dets_out[:, 0] -= image_range[0]
                     det_out = os.path.join(seq_path, 'det/det_{}.txt'.format(split))
                     dout = open(det_out, 'w')

@@ -197,7 +197,7 @@ def preproc(image, input_size, mean, std, swap=(2, 0, 1)):
         img,
         (int(img.shape[1] * r), int(img.shape[0] * r)),
         interpolation=cv2.INTER_LINEAR,
-    ).astype(np.float32)
+    ).astype(float)
     padded_img[: int(img.shape[0] * r), : int(img.shape[1] * r)] = resized_img
 
     padded_img = padded_img[:, :, ::-1]
@@ -207,7 +207,7 @@ def preproc(image, input_size, mean, std, swap=(2, 0, 1)):
     if std is not None:
         padded_img /= std
     padded_img = padded_img.transpose(swap)
-    padded_img = np.ascontiguousarray(padded_img, dtype=np.float32)
+    padded_img = np.ascontiguousarray(padded_img, dtype=float)
     return padded_img, r
 
 
@@ -223,9 +223,9 @@ class TrainTransform:
         labels = targets[:, 4].copy()
         ids = targets[:, 5].copy()
         if len(boxes) == 0:
-            targets = np.zeros((self.max_labels, 6), dtype=np.float32)
+            targets = np.zeros((self.max_labels, 6), dtype=float)
             image, r_o = preproc(image, input_dim, self.means, self.std)
-            image = np.ascontiguousarray(image, dtype=np.float32)
+            image = np.ascontiguousarray(image, dtype=float)
             return image, targets
 
         image_o = image.copy()
@@ -265,8 +265,8 @@ class TrainTransform:
         padded_labels[range(len(targets_t))[: self.max_labels]] = targets_t[
             : self.max_labels
         ]
-        padded_labels = np.ascontiguousarray(padded_labels, dtype=np.float32)
-        image_t = np.ascontiguousarray(image_t, dtype=np.float32)
+        padded_labels = np.ascontiguousarray(padded_labels, dtype=float)
+        image_t = np.ascontiguousarray(image_t, dtype=float)
         return image_t, padded_labels
 
 

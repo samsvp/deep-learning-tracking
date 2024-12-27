@@ -105,7 +105,7 @@ class DetMOTDetection:
         w, h = img._size
         assert w > 0 and h > 0, "invalid image {} with shape {} {}".format(img_path, w, h)
         if osp.isfile(label_path):
-            labels0 = np.loadtxt(label_path, dtype=np.float32).reshape(-1, 6)
+            labels0 = np.loadtxt(label_path, dtype=float).reshape(-1, 6)
 
             # normalized cewh to pixel xyxy format
             labels = labels0.copy()
@@ -143,7 +143,7 @@ class DetMOTDetection:
         targets['iscrowd'] = torch.as_tensor(targets['iscrowd'])
         targets['labels'] = torch.as_tensor(targets['labels'])
         targets['obj_ids'] = torch.as_tensor(targets['obj_ids'])
-        targets['boxes'] = torch.as_tensor(targets['boxes'], dtype=torch.float32).reshape(-1, 4)
+        targets['boxes'] = torch.as_tensor(targets['boxes'], dtype=torch.float).reshape(-1, 4)
 #         targets['boxes'][:, 0::2].clamp_(min=0, max=w)
 #         targets['boxes'][:, 1::2].clamp_(min=0, max=h)
         return img, targets

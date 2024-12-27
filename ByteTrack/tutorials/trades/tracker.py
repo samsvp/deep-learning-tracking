@@ -45,23 +45,23 @@ class Tracker(object):
         self.alive = []
 
         track_boxes = np.array([[track['bbox'][0], track['bbox'][1],
-                                 track['bbox'][2], track['bbox'][3]] for track in self.tracks], np.float32)  # M x 4
+                                 track['bbox'][2], track['bbox'][3]] for track in self.tracks], float)  # M x 4
         det_boxes = np.array([[item['bbox'][0], item['bbox'][1],
-                               item['bbox'][2], item['bbox'][3]] for item in results], np.float32)  # N x 4
+                               item['bbox'][2], item['bbox'][3]] for item in results], float)  # N x 4
         box_ious = self.bbox_overlaps_py(det_boxes, track_boxes)
 
         dets = np.array(
-            [det['ct'] + det['tracking'] for det in results], np.float32)  # N x 2
+            [det['ct'] + det['tracking'] for det in results], float)  # N x 2
         track_size = np.array([((track['bbox'][2] - track['bbox'][0]) * \
                                 (track['bbox'][3] - track['bbox'][1])) \
-                               for track in self.tracks], np.float32)  # M
+                               for track in self.tracks], float)  # M
         track_cat = np.array([track['class'] for track in self.tracks], np.int32)  # M
         item_size = np.array([((item['bbox'][2] - item['bbox'][0]) * \
                                (item['bbox'][3] - item['bbox'][1])) \
-                              for item in results], np.float32)  # N
+                              for item in results], float)  # N
         item_cat = np.array([item['class'] for item in results], np.int32)  # N
         tracks = np.array(
-            [pre_det['ct'] for pre_det in self.tracks], np.float32)  # M x 2
+            [pre_det['ct'] for pre_det in self.tracks], float)  # M x 2
         dist = (((tracks.reshape(1, -1, 2) - \
                   dets.reshape(-1, 1, 2)) ** 2).sum(axis=2))  # N x M
 
@@ -75,7 +75,7 @@ class Tracker(object):
         dist = dist + invalid * 1e18
 
         if self.opt.hungarian:
-            item_score = np.array([item['score'] for item in results], np.float32)  # N
+            item_score = np.array([item['score'] for item in results], float)  # N
             dist[dist > 1e18] = 1e18
             matched_indices = linear_assignment(dist)
         else:
@@ -115,7 +115,7 @@ class Tracker(object):
 
         if self.opt.public_det and len(unmatched_dets) > 0:
             # Public detection: only create tracks from provided detections
-            pub_dets = np.array([d['ct'] for d in public_det], np.float32)
+            pub_dets = np.array([d['ct'] for d in public_det], float)
             dist3 = ((dets.reshape(-1, 1, 2) - pub_dets.reshape(1, -1, 2)) ** 2).sum(
                 axis=2)
             matched_dets = [d for d in range(dets.shape[0]) \
@@ -177,23 +177,23 @@ class Tracker(object):
         if N > 0 and M > 0:
 
             track_boxes_second = np.array([[track['bbox'][0], track['bbox'][1],
-                                 track['bbox'][2], track['bbox'][3]] for track in self_tracks_second], np.float32)  # M x 4
+                                 track['bbox'][2], track['bbox'][3]] for track in self_tracks_second], float)  # M x 4
             det_boxes_second = np.array([[item['bbox'][0], item['bbox'][1],
-                                  item['bbox'][2], item['bbox'][3]] for item in results_second], np.float32)  # N x 4
+                                  item['bbox'][2], item['bbox'][3]] for item in results_second], float)  # N x 4
             box_ious_second = self.bbox_overlaps_py(det_boxes_second, track_boxes_second)
 
             dets = np.array(
-                [det['ct'] + det['tracking'] for det in results_second], np.float32)  # N x 2
+                [det['ct'] + det['tracking'] for det in results_second], float)  # N x 2
             track_size = np.array([((track['bbox'][2] - track['bbox'][0]) * \
                                     (track['bbox'][3] - track['bbox'][1])) \
-                                   for track in self_tracks_second], np.float32)  # M
+                                   for track in self_tracks_second], float)  # M
             track_cat = np.array([track['class'] for track in self_tracks_second], np.int32)  # M
             item_size = np.array([((item['bbox'][2] - item['bbox'][0]) * \
                                    (item['bbox'][3] - item['bbox'][1])) \
-                                  for item in results_second], np.float32)  # N
+                                  for item in results_second], float)  # N
             item_cat = np.array([item['class'] for item in results_second], np.int32)  # N
             tracks_second = np.array(
-                [pre_det['ct'] for pre_det in self_tracks_second], np.float32)  # M x 2
+                [pre_det['ct'] for pre_det in self_tracks_second], float)  # M x 2
             dist = (((tracks_second.reshape(1, -1, 2) - \
                       dets.reshape(-1, 1, 2)) ** 2).sum(axis=2))  # N x M
 
@@ -272,7 +272,7 @@ class Tracker(object):
         """
         n_ = boxes.shape[0]
         k_ = query_boxes.shape[0]
-        overlaps = np.zeros((n_, k_), dtype=np.float)
+        overlaps = np.zeros((n_, k_), dtype=float)
         for k in range(k_):
             query_box_area = (query_boxes[k, 2] - query_boxes[k, 0] + 1) * (query_boxes[k, 3] - query_boxes[k, 1] + 1)
             for n in range(n_):
