@@ -48,7 +48,7 @@ FPS = 2.5 # video at 25FPS with images taken every 10th sample
 def calc_speeds(df: pd.DataFrame) -> pd.DataFrame:
     # values in pixels per second
     df = df.sort_values("frame")
-    df["speed"] = df["bb_left"].diff().fillna(0) * FPS
+    df["speed"] = df["bb_left"].diff().fillna(0) / df["frame"].diff().fillna(1) * FPS
     return df
 
 def calc_tse(df: pd.DataFrame, u: int, spacing: int):
@@ -63,9 +63,11 @@ def calc_tse(df: pd.DataFrame, u: int, spacing: int):
         current_frame = current_index
         last_frame = current_frame + spacing
         while current_frame < last_frame:
-            next_frame = current_frame + 1
             current_positions = df[df["frame"] == current_frame][["id", "bb_left", "speed"]]
-            next_positions = df[df["frame"] == next_frame][["id","bb_left", "speed"]]
+            df_reset = df.reset_index(drop=True)
+            current_ids = current_positions["id"]
+            filtered_df = df_reset[df_reset["id"].isin(current_ids) & (df_reset["frame"] > current_frame)]
+            next_positions = filtered_df.loc[filtered_df.groupby("id")["frame"].idxmin(), ["id", "bb_left", "speed"]]
             for current_pos_index in current_positions.iterrows():
                 current_pos = current_pos_index[1]
                 last_pos = current_pos["bb_left"]

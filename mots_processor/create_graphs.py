@@ -1,10 +1,23 @@
+import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
 
+try:
+    os.mkdir("imgs")
+except FileExistsError:
+    ...
+
 filepath = sys.argv[1]
+area = filepath.split("-")[-2]
+u = filepath.split("-")[-1].split(".")[0]
 df_full = pd.read_csv(filepath)
+
+try:
+    os.mkdir(f'imgs/{area}')
+except FileExistsError:
+    ...
 
 columns_groups = [
     ("Relative error mean Counts", "Relative error std Counts"),
@@ -58,13 +71,15 @@ for mean_col, std_col in columns_groups:
         means,
         width,
         yerr=stds,
+        error_kw={'ecolor':'red'},
         color=['skyblue', 'orange', 'green', 'yellow', 'magenta', 'red'],
     )
 
     # Add labels, title, and custom ticks
+    title = f'Comparison of {error_kind} Errors for {tse_kind} Across Methods, Area {area}, U {u}'
     ax.set_ylabel('Relative Error (Mean ± Std)')
     ax.set_xlabel('Method')
-    ax.set_title(f'Comparison of {error_kind} Errors for {tse_kind} Across Methods')
+    ax.set_title(title)
     ax.set_xticks(x)
     ax.set_xticklabels(trackers)
 
@@ -75,5 +90,5 @@ for mean_col, std_col in columns_groups:
 
     # Show plot
     plt.tight_layout()
-    plt.show()
-
+    img_title = f"{error_kind}-{tse_kind}-{area}-{u}"
+    plt.savefig(f'imgs/{area}/{img_title}.png')

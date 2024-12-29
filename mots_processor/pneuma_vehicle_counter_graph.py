@@ -4,102 +4,7 @@ import argparse
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-
-def load_df(mot_file: str, bottom: bool = False) -> pd.DataFrame:
-    df = pd.read_csv(
-        mot_file,
-        names=["frame", "id", "bb_left", "bb_top", "bb_width", "bb_height", "conf", "x", "y", "z"]
-    )
-
-    if bottom:
-        df = df[df["bb_top"] > 300]
-
-    return df
-
-
-def passed_through_pos(df: pd.DataFrame, x: int):
-    last_frame = df["frame"].max()
-    current_frame = 1
-    count = 0
-    while current_frame < last_frame:
-        next_frame = current_frame + 1
-        current_positions = df[df["frame"] == current_frame][["id", "bb_left"]]
-        next_positions = df[df["frame"] == next_frame][["id","bb_left"]]
-        for current_pos_index in current_positions.iterrows():
-            current_pos = current_pos_index[1]
-            last_pos = current_pos["bb_left"]
-            if last_pos > x:
-                continue
-
-            next_pos = next_positions[next_positions["id"] == current_pos["id"]]
-            if next_pos.empty:
-                continue
-
-            new_pos = next_pos["bb_left"].values[0]
-            if new_pos > x:
-                count += 1
-
-        current_frame += 1
-        print(f"Frame {current_frame} count is {count}")
-    return count
-
-
-FPS = 2.5 # video at 25FPS with images taken every 10th sample
-
-def calc_speeds(df: pd.DataFrame) -> pd.DataFrame:
-    # values in pixels per second
-    df = df.sort_values("frame")
-    df["speed"] = df["bb_left"].diff().fillna(0) * FPS
-    return df
-
-def calc_tse(df: pd.DataFrame, u: int, spacing: int):
-    df = df.groupby("id")[df.columns.tolist()].apply(calc_speeds)
-    current_index = 0
-    frame_count = df["frame"].max()
-    speed_sums = []
-    counts = []
-    while current_index < frame_count:
-        speed_sum = 0
-        count = 0
-        current_frame = current_index
-        last_frame = current_frame + spacing
-        while current_frame < last_frame:
-            next_frame = current_frame + 1
-            current_positions = df[df["frame"] == current_frame][["id", "bb_left", "speed"]]
-            next_positions = df[df["frame"] == next_frame][["id","bb_left", "speed"]]
-            for current_pos_index in current_positions.iterrows():
-                current_pos = current_pos_index[1]
-                last_pos = current_pos["bb_left"]
-                # has already passed through u
-                if last_pos > u:
-                    continue
-
-
-                # no new pos
-                next_pos = next_positions[next_positions["id"] == current_pos["id"]]
-                if next_pos.empty:
-                    continue
-
-                # passed through u
-                new_pos = next_pos["bb_left"].values[0]
-                if new_pos > u:
-                    count += 1
-                    speed_sum += current_pos["speed"]
-
-            current_frame += 1
-
-        current_index = last_frame
-        speed_sums.append(speed_sum)
-        counts.append(count)
-
-    # speeds = [3.6 * s / c if c > 0 else 0 for s, c in zip(speed_sums, counts)]
-    # leave everything in pixels
-    speeds = [3.6 * s / c if c > 0 else 0 for s, c in zip(speed_sums, counts)]
-    flows = [3600* c / (spacing * 1 / FPS) for c in counts]
-    #dens = [1000 * f / s if s > 0 else 0 for f, s in zip(flows, speeds)]
-    dens = [1000 * f / s if s > 0 else 0 for f, s in zip(flows, speeds)]
-    return speeds, flows, dens, counts
-
+from pneuma_vehicle_counter import *
 
 def tse(df_t: pd.DataFrame, mot_file: str, u: int, bottom: bool, results: list):
     print(f"Evaluating {mot_file}")
@@ -107,6 +12,8 @@ def tse(df_t: pd.DataFrame, mot_file: str, u: int, bottom: bool, results: list):
     df = load_df(mot_file, bottom)
     speeds, flows, dens, counts = calc_tse(df, u, args.spacing)
     speeds_t, flows_t, dens_t, counts_t = calc_tse(df_t, u, args.spacing)
+    print("speeds", np.array(speeds_t), np.array(speeds))
+    print("counts", counts_t, counts)
 
     errors = {
         "Counts": [100 * abs(c - counts[i]) / c if c > 0 else 0 for i, c in enumerate(counts_t)],
@@ -120,19 +27,32 @@ def tse(df_t: pd.DataFrame, mot_file: str, u: int, bottom: bool, results: list):
         "Speeds": [abs(s - speeds[i]) for i, s in enumerate(speeds_t)],
         "Densities": [abs(d - dens[i]) for i, d in enumerate(dens_t)],
     }
-    errors_sum = {
-        "Counts": 100 * abs(sum(counts_t) - sum(counts)) / sum(counts_t) if sum(counts_t) > 0 else 0,
-        "Flows": 100 * abs(sum(flows) - sum(flows_t)) / sum(flows_t) if sum(counts_t) > 0 else 0,
-        "Speeds": 100 * abs(sum(speeds) - sum(speeds_t)) / sum(speeds_t) if sum(counts_t) > 0 else 0,
-        "Densities": 100 * abs(sum(dens_t) - sum(dens)) / sum(dens_t) if sum(counts_t) > 0 else 0,
-    }
 
     for name, errs in errors.items():
         results.append(errs)
     for name, errs in errors_abs.items():
         results.append(errs)
-    for name, errs in errors_abs.items():
-        results.append(errs)
+
+
+def show_plot(trackers, res_df):
+    data = [res_df['Relative error Counts'][f'{tracker}-7'] for tracker in trackers]
+    width = 0.25  # Bar width
+    group_spacing = 1
+    x = np.arange(len(data[0])) * (len(trackers) * width + group_spacing)
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    for i, tracker_data in enumerate(data):
+        ax.bar(x + i * width, tracker_data, width, label=trackers[i])
+
+    ax.set_ylabel('Relative Error Counts')
+    ax.set_xlabel('Data Points')
+    ax.set_title('Comparison of Relative Errors Across Trackers')
+    ax.set_xticks(x + width / 2)
+    ax.set_xticklabels([f'Point {i+1}' for i in range(len(data[0]))])
+    ax.legend(title='Trackers')
+
+    plt.tight_layout()
+    plt.show()
 
 
 if __name__ == "__main__":
@@ -148,7 +68,14 @@ if __name__ == "__main__":
 
     results = {}
 
+    column_names = []
+
     names = ["Counts", "Flows", "Speeds", "Densities"]
+    for name in names:
+        column_names.append(f"Relative error {name}")
+    for name in names:
+        column_names.append(f"Cummulative error {name}")
+
     for kind in ["vel", "acc", "adp"]:
         for i in range(7, 8):
             key = f"sort-{kind}-{i}"
@@ -165,6 +92,8 @@ if __name__ == "__main__":
 
     res_df = pd.DataFrame(results).T
     res_df.columns = column_names
-    print(res_df)
+
+    trackers = ["sort-vel", "sort-acc", "sort-adp", "idm-tracker", "ByteTrack", "deepsort"]
+    show_plot(trackers, res_df)
 
 
