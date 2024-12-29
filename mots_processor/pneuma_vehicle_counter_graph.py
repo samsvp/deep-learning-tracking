@@ -3,6 +3,7 @@
 import argparse
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 def load_df(mot_file: str, bottom: bool = False) -> pd.DataFrame:
     df = pd.read_csv(
@@ -127,21 +128,11 @@ def tse(df_t: pd.DataFrame, mot_file: str, u: int, bottom: bool, results: list):
     }
 
     for name, errs in errors.items():
-        print(f"{name} relative error is {np.mean(errs)}, +- {np.std(errs)}")
-        results.append(np.mean(errs))
-        results.append(np.std(errs))
-    print("")
+        results.append(errs)
     for name, errs in errors_abs.items():
-        print(f"{name} cummulative error is {np.sum(errs)}, total sum error: {errors_sum[name]}")
-        results.append(np.sum(errs))
-        results.append(errors_sum[name])
-    print("")
+        results.append(errs)
     for name, errs in errors_abs.items():
-        print(f"{name} mean abs error is {np.mean(errs)}, +- {np.std(errs)}")
-        results.append(np.mean(errs))
-        results.append(np.std(errs))
-
-    print("\n\n")
+        results.append(errs)
 
 
 if __name__ == "__main__":
@@ -152,35 +143,21 @@ if __name__ == "__main__":
     parser.add_argument('-b', '--bottom', action='store_true')
     args = parser.parse_args()
 
-
     truth_mot = f"../{args.index}_0900_0930_D10_RM_mot.txt"
     df_t = load_df(truth_mot, args.bottom)
 
     results = {}
 
-
-    column_names = []
-
     names = ["Counts", "Flows", "Speeds", "Densities"]
-    for name in names:
-        column_names.append(f"Relative error mean {name}")
-        column_names.append(f"Relative error std {name}")
-    for name in names:
-        column_names.append(f"Cummulative error mean {name}")
-        column_names.append(f"Cummulative error absolute {name}")
-    for name in names:
-        column_names.append(f"Absolute error mean {name}")
-        column_names.append(f"Absolute error std {name}")
-
     for kind in ["vel", "acc", "adp"]:
-        for i in range(7, 12):
+        for i in range(7, 8):
             key = f"sort-{kind}-{i}"
             results[key] = []
             mot_file = f"../sort-acc/output/pNEUMA{args.index}-{i}-tiny-{kind}.mot"
             tse(df_t, mot_file, args.u, args.bottom, results[key])
 
     for tracker in ["idm-tracker", "ByteTrack", "deepsort"]:
-        for i in range(7, 12):
+        for i in range(7, 8):
             key = f"{tracker}-{i}"
             results[key] = []
             mot_file = f"../{tracker}/output/pNEUMA{args.index}-{i}-tiny.mot"
@@ -188,6 +165,6 @@ if __name__ == "__main__":
 
     res_df = pd.DataFrame(results).T
     res_df.columns = column_names
-    res_df.to_csv(f"res-{args.index}-{args.u}.csv")
+    print(res_df)
 
 
